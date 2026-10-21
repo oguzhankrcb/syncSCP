@@ -6,7 +6,7 @@ Upstream's forms and components use Embarcadero VCL; its nonvisual core also use
 
 ## Layers
 
-`SyncSCPCore` contains file/session models, site persistence, protocol-independent `RemoteSession` and `RemoteFileClient` interfaces, serialized SFTP/SCP/FTP/WebDAV/S3 actors, an SFTP v3 codec, OpenSSH process transport, and the synchronization planner. The original `CCurlTransport` C bridge wraps macOS libcurl for FTP/FTPS. There are no downloaded application package dependencies.
+`SyncSCPCore` contains file/session models, site persistence, protocol-independent `RemoteSession` and `RemoteFileClient` interfaces, serialized SFTP/SCP/FTP/WebDAV/S3 actors, an SFTP v3 codec, OpenSSH process transport, and the synchronization planner. The original `CCurlTransport` C bridge wraps macOS libcurl for FTP/FTPS. The only downloaded package is SwiftTerm (MIT, pinned to 1.20.0), used by the app target for the terminal window; `SSHTerminalLaunch` in the core builds the interactive `ssh` command from the same site settings.
 
 `SyncSCP` uses SwiftUI/AppKit for the Commander window, native tables and menus, connection settings, host trust, Keychain-backed askpass, queue, editor, and reviewed synchronization. `CommanderModel` is isolated to the main actor. The SFTP actor performs blocking pipe I/O away from the UI actor; each protocol operation is serialized. Only one session and one transfer worker are active at a time.
 

@@ -96,7 +96,7 @@ final class CommanderModel: ObservableObject {
         do { let store = try SiteStore(); self.store = store; sites = try store.load() }
         catch { self.error = error.localizedDescription }
         refreshLocal()
-        appendLog("syncSCP 0.13.0 · Community development preview")
+        appendLog("syncSCP 0.14.0 · Community development preview")
     }
 
     /// Carries preferences over from the bundle identifier used before the rename to syncSCP.
@@ -643,6 +643,34 @@ final class CommanderModel: ObservableObject {
             try await self.client.upload(local: temporary, remote: document.entry.path, replace: true, expectedDestination: document.entry)
             self.editor = nil; self.appendLog("Saved remote text file: \(document.entry.path)")
         }
+    }
+
+    var canOpenTerminal: Bool { connected && currentSite?.transferProtocol.usesSSH == true }
+
+    /// WinSCP's Open Terminal: a separate SSH login to the current site, starting in the remote
+    /// folder shown in the panel. Passwords are asked for in the terminal; none are kept.
+    func openTerminal(inTerminalApp: Bool = false) {
+        guard canOpenTerminal, let site = currentSite, let store else { return }
+        do {
+            let launch = try SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path).terminalLaunch(directory: remotePath)
+            let title = "\(site.username)@\(site.host)"
+            if inTerminalApp {
+                guard let terminalApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
+                    throw ClientError.invalid("Terminal.app was not found.")
+                }
+                // A private, self-deleting .command file: Terminal.app runs it without any automation permission.
+                let directory = FileManager.default.temporaryDirectory.appendingPathComponent("syncscp-terminal-" + UUID().uuidString, isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                let file = directory.appendingPathComponent("ssh.command")
+                try Data(launch.commandFile.utf8).write(to: file, options: .withoutOverwriting)
+                try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: file.path)
+                NSWorkspace.shared.open([file], withApplicationAt: terminalApp, configuration: NSWorkspace.OpenConfiguration())
+                appendLog("Opened \(title) in Terminal.app.")
+            } else {
+                TerminalWindowController.open(launch, title: title)
+                appendLog("Opened a terminal to \(title) in \(remotePath).")
+            }
+        } catch { report(error) }
     }
 
     func previewSynchronization() {

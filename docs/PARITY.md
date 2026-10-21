@@ -6,6 +6,7 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | --- | --- | --- |
 | Commander dual panes | Implemented | WinSCP layout with per-pane navigation/action bars, back/forward history, Type/Changed/Rights columns, selection totals, drag and drop between panes and from Finder, F2/F4/F5/F7/F8 and Go-menu shortcuts, the ".." row and a clickable path strip; dragging remote items to Finder, F6 move, directory tree, selection masks and multiple session tabs remain |
 | Explorer interface | Missing | Single-panel mode |
+| Open Terminal / Open in PuTTY | Implemented | Interactive `ssh -t` login in a SwiftTerm window or Terminal.app, starting in the remote folder through the site's shell; WinSCP's non-interactive command console, custom commands and saved terminal profiles remain |
 | SFTP | Implemented, v3 | More server interoperability, extensions, pipelining, non-UTF-8 policy |
 | SSH key / agent / password | Implemented | Hardware-key and keyboard-interactive coverage, GSSAPI, persistent credentials |
 | Host-key verification | Implemented | Key rotation UI, import/export, SSH config integration |

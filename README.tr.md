@@ -4,7 +4,7 @@ SFTP, SCP, FTP/FTPS, WebDAV ve S3 için yerel bir macOS dosya yöneticisi. WinSC
 
 Projenin eski adı "WinSCP for macOS" idi. Bağımsız bir projedir; WinSCP ile bağlantısı yoktur ve WinSCP tarafından desteklenmez. Windows WinSCP'deki sitelerinizi içe aktarabilir.
 
-**0.13.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
+**0.14.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
 
 <p align="center">
   <img src="docs/screenshots/commander.png" alt="syncSCP Commander penceresi" width="100%"/>
@@ -88,6 +88,15 @@ WinSCP Commander tuşları Files ▸ Commander Keys altında (F2 yeniden adland�
 - Yüklenmemiş değişiklik içeren kopyalar hiçbir zaman silinmiyor.
 
 0.12.0 ile iki panelin işlem çubuğuna **New ▾** menüsü eklendi: Folder… (F7) ve File… (⇧F4, ⌘⌥N). Yeni dosya boş oluşturuluyor; aynı adda bir dosya varsa üzerine yazılmıyor. Uzak panelde oluşturulan dosya hemen editörde açılıyor.
+
+0.14.0 ile **SSH terminali** geldi (WinSCP'deki Open Terminal gibi). Bağlıyken Session ▸ **Open Terminal** (⌘T) ya da araç çubuğundaki **Terminal** düğmesi, siteye ayrı bir pencerede yeni bir etkileşimli giriş açar:
+
+- Uzak panelde açık olan klasörde başlar; SCP/Shell ayarı (örneğin `sudo su -`) varsa onu çalıştırır.
+- Dosya oturumuyla aynı Advanced ayarları, proxy, tunnel ve sıkı host key kontrolünü kullanır.
+- Parola, anahtar parolası ve sudo soruları terminalin içinde sorulur; hiçbiri saklanmaz.
+- **Open in Terminal.app** (⌘⇧T) aynı girişi macOS Terminal'de açar.
+- Settings ▸ Terminal'den font ve boyut seçilir; ikonlu prompt'lar için bir Nerd Font seçin. Option tuşu karakter yazar (@, | gibi).
+- Terminal çizimi [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT) ile yapılır.
 
 0.13.0 ile proje **syncSCP** adını aldı. Uygulama artık `syncSCP.app`, paket kimliği `io.github.oguzhankrcb.syncscp`. İlk açılışta `~/Library/Application Support/WinSCPMac` klasörü (siteler, `known_hosts`, çevrilmiş anahtarlar, düzenlemeler, yedekler) `~/Library/Application Support/SyncSCP` altına kopyalanır ve kayıtlı anahtar yolları yeni klasöre çevrilir. Eski klasör yedek olarak bırakılır; her şey yolundaysa kendiniz silebilirsiniz. Varsayılan harici editör ayarı da taşınır.
 

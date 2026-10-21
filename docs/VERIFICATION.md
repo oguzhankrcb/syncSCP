@@ -1,5 +1,14 @@
 # Verification record
 
+## 0.14.0 — SSH terminal
+
+Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **119 XCTest cases, zero failures, zero skips**.
+
+- New unit tests: the terminal login keeps the strict host-key options while dropping BatchMode; the folder and the SCP shell become one quoted remote command; the askpass hook never reaches the terminal environment; and Terminal.app's `.command` file reproduces every argument, including `$(…)`, backticks and quotes, then deletes itself and its folder.
+- New tests against the real SSH daemons on a pseudo-terminal: the session starts in a remote folder whose name contains quotes and `$( )`, gets `TERM=xterm-256color` and a remote tty; a configured shell (a `sudo su -` stand-in) starts once and runs typed commands; an unknown host key is refused.
+- The terminal window was opened against the SSH fixture and captured in light and dark mode: listing, Turkish characters, ANSI colors, `vi` full-screen, the window subtitle from the remote title, a Nerd Font prompt, and the "Session ended" line after `exit`.
+- **Not tried by me:** typing into the packaged app by hand, password/keyboard-interactive prompts on a real server, a real `sudo` that asks for a password, Terminal.app opening, and the close/quit confirmations.
+
 ## 0.13.0 — Renamed to syncSCP
 
 Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **112 XCTest cases, zero failures, zero skips**. Older entries below keep the names that were current at the time (WinSCPMac, WinSCPCore, `WINSCP_*`).

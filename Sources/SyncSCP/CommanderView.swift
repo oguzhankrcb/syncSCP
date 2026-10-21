@@ -49,6 +49,8 @@ struct CommanderView: View {
             ToolDivider()
             ToolButton(title: "Synchronize", icon: "arrow.triangle.2.circlepath") { model.previewSynchronization() }
                 .disabled(!model.connected || model.busy).help("Synchronize · ⌘⇧S")
+            ToolButton(title: "Terminal", icon: "terminal") { model.openTerminal() }
+                .disabled(!model.canOpenTerminal).help(model.canOpenTerminal ? "Open an SSH terminal in the current remote folder · ⌘T" : "Connect with SFTP or SCP to open a terminal")
             Menu {
                 Toggle("Show Queue Panel", isOn: $model.showBottom)
                 Button("Show Session Log") { model.bottomTab = .log; model.showBottom = true }
@@ -132,7 +134,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.13.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.14.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)

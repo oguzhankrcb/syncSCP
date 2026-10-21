@@ -66,6 +66,10 @@ struct SyncSCPApp: App {
             CommandMenu("Session") {
                 Button("Synchronize…") { model.previewSynchronization() }.keyboardShortcut("s", modifiers: [.command, .shift]).disabled(!model.connected)
                 Button("Refresh") { model.refresh() }.keyboardShortcut("r")
+                Divider()
+                Button("Open Terminal") { model.openTerminal() }.keyboardShortcut("t").disabled(!model.canOpenTerminal)
+                Button("Open in Terminal.app") { model.openTerminal(inTerminalApp: true) }.keyboardShortcut("t", modifiers: [.command, .shift]).disabled(!model.canOpenTerminal)
+                Divider()
                 Toggle("Show Hidden Files", isOn: $model.showHidden).keyboardShortcut(".", modifiers: [.command, .shift])
                 Button("Session Log") { model.bottomTab = .log; model.showBottom = true }
             }
@@ -73,7 +77,7 @@ struct SyncSCPApp: App {
                 Button("About syncSCP") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "syncSCP",
-                        .applicationVersion: "0.13.0 — Development Preview",
+                        .applicationVersion: "0.14.0 — Development Preview",
                         .credits: NSAttributedString(string: "An independent macOS file manager inspired by WinSCP's workflows; not affiliated with the WinSCP project.\nWinSCP is by Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }
@@ -90,6 +94,16 @@ enum FunctionKey {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let count = TerminalWindowController.activeCount
+        guard count > 0 else { return .terminateNow }
+        let alert = NSAlert()
+        alert.messageText = count == 1 ? "Quit with an open terminal?" : "Quit with \(count) open terminals?"
+        alert.informativeText = "Their SSH sessions will end, along with anything running in them."
+        alert.addButton(withTitle: "Quit"); alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
 }
 
 enum SessionCredential {

@@ -201,4 +201,63 @@ final class AdvancedSettingsIntegrationTests: XCTestCase {
         XCTAssertEqual(recorded.first.map { Array($0.split(separator: " ").dropFirst()) }, [hostKey[0], hostKey[1]])
         XCTAssertTrue(recorded.first?.hasPrefix("[127.0.0.1]:\(scpPort) ") == true)
     }
+
+    /// Runs a terminal launch on a real pseudo-terminal, types `input`, and returns what the terminal showed.
+    private func terminalOutput(_ launch: SSHTerminalLaunch, input: String) throws -> String {
+        var master: Int32 = -1, slave: Int32 = -1
+        var size = winsize(ws_row: 30, ws_col: 120, ws_xpixel: 0, ws_ypixel: 0)
+        guard openpty(&master, &slave, nil, nil, &size) == 0 else { throw ClientError.invalid("openpty failed") }
+        defer { close(master) }
+        let process = Process(), tty = FileHandle(fileDescriptor: slave, closeOnDealloc: false)
+        process.executableURL = URL(fileURLWithPath: launch.executable); process.arguments = launch.arguments
+        process.environment = Dictionary(uniqueKeysWithValues: launch.environment.map { entry in
+            let parts = entry.split(separator: "=", maxSplits: 1); return (String(parts[0]), parts.count > 1 ? String(parts[1]) : "")
+        })
+        process.standardInput = tty; process.standardOutput = tty; process.standardError = tty
+        try process.run(); close(slave)
+        _ = input.utf8CString.withUnsafeBufferPointer { write(master, $0.baseAddress, $0.count - 1) }
+        var output = Data(), buffer = [UInt8](repeating: 0, count: 4096), readError: Int32?
+        let deadline = Date().addingTimeInterval(20)
+        while Date() < deadline {
+            var descriptor = pollfd(fd: master, events: Int16(POLLIN), revents: 0)
+            guard poll(&descriptor, 1, 200) > 0 else { if !process.isRunning { break }; continue }
+            let count = read(master, &buffer, buffer.count)
+            if count < 0 && (errno == EINTR || errno == EAGAIN) { continue }
+            if count <= 0 { readError = count < 0 ? errno : 0; break }
+            output.append(buffer, count: count)
+        }
+        let exited = Date().addingTimeInterval(5)
+        while process.isRunning && Date() < exited { usleep(50_000) }
+        if process.isRunning { process.terminate(); XCTFail("The terminal session did not end (read \(readError.map(String.init) ?? "timeout")): \(String(decoding: output, as: UTF8.self))") }
+        process.waitUntilExit()
+        return String(decoding: output, as: UTF8.self)
+    }
+
+    func testTerminalOpensInTheRemoteFolderOnARealPTY() throws {
+        let folder = remote.appendingPathComponent("it's a \"terminal\" $(folder)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let configuration = SSHConfiguration(site: site(.sftp, port: sftpPort), knownHostsFile: fixture.appendingPathComponent("known hosts").path)
+        // Typed text is echoed; only real output contains the evaluated arithmetic.
+        let output = try terminalOutput(configuration.terminalLaunch(directory: folder.path),
+                                        input: "cd .; echo \"[$PWD]\" TERM=$TERM tty-$(test -t 0 && echo yes) done-$((40+2)); exit\n")
+        XCTAssertTrue(output.contains("[\(folder.path)]") || output.contains("[\(folder.resolvingSymlinksInPath().path)]"), output)
+        XCTAssertTrue(output.contains("TERM=xterm-256color tty-yes done-42"), output)
+    }
+
+    func testTerminalStartsTheConfiguredShellLikeSudoSu() throws {
+        let shell = try script("fake-sudo-terminal", "echo started >> $LOG\necho FAKE-SUDO-$((1+1))\nexec /bin/sh\n")
+        var settings = SiteSettings(); settings.shell = shell.path
+        let configuration = SSHConfiguration(site: site(.scp, port: scpPort, settings: settings), knownHostsFile: fixture.appendingPathComponent("known hosts").path)
+        let output = try terminalOutput(configuration.terminalLaunch(directory: remote.path), input: "echo inside-$((2+3)); exit\n")
+        XCTAssertTrue(output.contains("FAKE-SUDO-2"), output)
+        XCTAssertTrue(output.contains("inside-5"), output)
+        XCTAssertEqual(starts(shell.log), 1)
+    }
+
+    func testTerminalRefusesAnUnknownHostKey() throws {
+        let empty = root.appendingPathComponent("empty known_hosts")
+        try Data().write(to: empty)
+        let output = try terminalOutput(SSHConfiguration(site: site(.sftp, port: sftpPort), knownHostsFile: empty.path).terminalLaunch(), input: "")
+        XCTAssertTrue(output.contains("Host key verification failed"), output)
+    }
 }

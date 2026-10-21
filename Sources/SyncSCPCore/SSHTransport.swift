@@ -46,15 +46,16 @@ public struct SSHConfiguration: Sendable {
                     privateKey: settings.tunnelPrivateKey, transferProtocol: .sftp, settings: inner)
     }
 
-    func baseArguments() throws -> [String] {
+    /// `interactive` is the terminal window: a remote pty, and OpenSSH prompts on the terminal itself.
+    func baseArguments(interactive: Bool = false) throws -> [String] {
         try site.validate()
         // OpenSSH parses -o values as config syntax even when passed as one argv element.
-        var args = ["-F", "/dev/null", "-T", "-o", "StrictHostKeyChecking=yes", "-o", "UserKnownHostsFile=\(SSHOptions.configQuoted(knownHostsFile))",
+        var args = ["-F", "/dev/null", interactive ? "-t" : "-T", "-o", "StrictHostKeyChecking=yes", "-o", "UserKnownHostsFile=\(SSHOptions.configQuoted(knownHostsFile))",
                     "-o", "GlobalKnownHostsFile=/dev/null", "-o", "ClearAllForwardings=yes",
-                    "-o", "PermitLocalCommand=no", "-o", "NumberOfPasswordPrompts=1", "-p", String(site.port), "-l", site.username]
+                    "-o", "PermitLocalCommand=no", "-o", "NumberOfPasswordPrompts=\(interactive ? 3 : 1)", "-p", String(site.port), "-l", site.username]
         args += try SSHOptions.arguments(site.settings, host: site.host, knownHostsFile: knownHostsFile)
         if !site.privateKey.isEmpty { args += ["-i", (site.privateKey as NSString).expandingTildeInPath, "-o", "IdentitiesOnly=yes"] }
-        if credentialID == nil { args += ["-o", "BatchMode=yes"] }
+        if credentialID == nil && !interactive { args += ["-o", "BatchMode=yes"] }
         return args
     }
 
