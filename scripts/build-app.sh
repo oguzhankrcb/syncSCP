@@ -14,6 +14,8 @@ done
 "$TASK_ROOT/scripts/swift.sh" build -c "$BUILD_MODE" "${BUILD_ARCHES[@]}"
 BINARY_DIR="$("$TASK_ROOT/scripts/swift.sh" build -c "$BUILD_MODE" "${BUILD_ARCHES[@]}" --show-bin-path)"
 APP_BUNDLE="$TASK_ROOT/dist/WinSCP for macOS.app"
+# Start from an empty bundle so files removed from the project never linger in a release.
+rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 cp "$BINARY_DIR/WinSCPMac" "$APP_BUNDLE/Contents/MacOS/WinSCPMac"
 cp "$TASK_ROOT/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"

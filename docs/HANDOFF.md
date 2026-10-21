@@ -152,7 +152,7 @@ Yerel tool sandbox'ında port açma, bağımlılık indirme veya `iconutil` izin
 - protokol ailesi + Encryption seçimi (`ProtocolFamily`)
 - açık Save / Save As…
 
-Artık login'de site otomatik kaydedilmiyor. **0.12.0:** işlem çubuğunda New ▾ menüsü (Folder/File); `CommanderModel.promptNewFile` boş dosyayı no-clobber upload ile oluşturuyor. 0.11.0 ve 0.12.0 commit'leri kullanıcı isteğiyle henüz push edilmedi.
+Artık login'de site otomatik kaydedilmiyor. **0.12.0:** işlem çubuğunda New ▾ menüsü (Folder/File); `CommanderModel.promptNewFile` boş dosyayı no-clobber upload ile oluşturuyor. 0.11.0 ve 0.12.0 tek commit olarak (`00656c7`) push edildi. Lisans GPL-3.0-or-later olarak kaldı; Apache 2.0 ve PolyForm denemeleri geri alındı. Yerelde `backup/before-license-reset` ve `backup/polyform-attempt` dalları yedek olarak duruyor.
 
 **0.11.0:** harici editör desteği var. İlgili kod:
 
