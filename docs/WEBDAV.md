@@ -22,7 +22,7 @@ WebDAV does not standardize POSIX mode bits or portable symlink identity. Rights
 
 ## Replacement and editing
 
-Each upload creates an exclusively allocated `.winscp-UUID.filepart` collection next to its destination using MKCOL. A fixed `payload` file is PUT inside it with `If-None-Match: *`. The client verifies the local source's size/mtime and the uploaded size before publishing with MOVE, then verifies the destination's existence/type/size. Upload access therefore requires collection creation and deletion as well as PUT and MOVE.
+Each upload creates an exclusively allocated `.syncscp-UUID.filepart` collection next to its destination using MKCOL. A fixed `payload` file is PUT inside it with `If-None-Match: *`. The client verifies the local source's size/mtime and the uploaded size before publishing with MOVE, then verifies the destination's existence/type/size. Upload access therefore requires collection creation and deletion as well as PUT and MOVE.
 
 New destinations use **Overwrite: F**, so a conforming server refuses files or collections that appear during transfer. Approved replacements require a regular destination and a **strong ETag**. A tagged WebDAV `If` condition identifies the destination and its reviewed tag in the MOVE request, while a separate source condition protects the uploaded payload. These use RFC 4918 absolute-path resource tags. An ordinary `If-Match` header on MOVE would condition the source rather than the destination.
 

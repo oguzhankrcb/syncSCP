@@ -1,11 +1,13 @@
-# WinSCP for macOS — community port
+# syncSCP
 
-A native macOS implementation of WinSCP's Commander workflow, built with SwiftUI, AppKit, and macOS's OpenSSH and libcurl. Free software under **GPL-3.0-or-later**.
+A native macOS file manager for SFTP, SCP, FTP/FTPS, WebDAV and S3, modelled on WinSCP's two-pane Commander workflow. Built with SwiftUI, AppKit, and macOS's OpenSSH and libcurl. Free software under **GPL-3.0-or-later**.
 
-**Status: 0.12.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
+syncSCP was previously called "WinSCP for macOS". It is an independent project and is not affiliated with or endorsed by WinSCP; it can import your sites from Windows WinSCP.
+
+**Status: 0.13.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
 
 <p align="center">
-  <img src="docs/screenshots/commander.png" alt="WinSCP for macOS: Commander window with local and remote panes, an SCP session through sudo su -, and the transfer queue" width="100%"/>
+  <img src="docs/screenshots/commander.png" alt="syncSCP: Commander window with local and remote panes, an SCP session through sudo su -, and the transfer queue" width="100%"/>
 </p>
 <p align="center"><em>WinSCP's two-pane Commander, native on macOS: here an SCP session running through <code>sudo su -</code>, with a transfer in the queue.</em></p>
 
@@ -23,6 +25,10 @@ A native macOS implementation of WinSCP's Commander workflow, built with SwiftUI
 
 Screenshots use sample data.
 
+## Renamed from "WinSCP for macOS" (0.13.0)
+
+The app is now `syncSCP.app` with the bundle identifier `io.github.oguzhankrcb.syncscp`. On first launch it copies `~/Library/Application Support/WinSCPMac` (sites, `known_hosts`, converted keys, edits, backups) to `~/Library/Application Support/SyncSCP` and points saved key paths at the new folder. The old folder is left untouched as a backup; delete it yourself once you are happy. The default external editor setting is carried over too. Passwords saved for the current session only are not.
+
 ## Build and run
 
 Requires macOS 13 or later and an Xcode toolchain with Swift 5.9 or later. No Homebrew libraries, package downloads, Wine, Electron, or external servers are needed to build.
@@ -31,10 +37,10 @@ Requires macOS 13 or later and an Xcode toolchain with Swift 5.9 or later. No Ho
 ./scripts/swift.sh test
 ./scripts/test-ssh.sh
 ./scripts/build-app.sh
-open "dist/WinSCP for macOS.app"
+open "dist/syncSCP.app"
 ```
 
-For a development build, use `./scripts/build-app.sh --debug`. For an Apple Silicon + Intel binary, use `./scripts/build-app.sh --universal`. You can also open `Package.swift` in Xcode and run the `WinSCPMac` executable scheme. The bundle is signed ad hoc for local use; Developer ID signing and notarization are not configured.
+For a development build, use `./scripts/build-app.sh --debug`. For an Apple Silicon + Intel binary, use `./scripts/build-app.sh --universal`. You can also open `Package.swift` in Xcode and run the `SyncSCP` executable scheme. The bundle is signed ad hoc for local use; Developer ID signing and notarization are not configured.
 
 `./scripts/package-release.sh` builds the universal app and creates verified, versioned application/source ZIP archives in `dist/` from the current checkout, including uncommitted source changes.
 
@@ -75,7 +81,7 @@ Choose **New Session**, select SFTP, SCP, FTP, an FTPS mode, WebDAV or S3 over H
 
 For SFTP or SCP, compare the first-use host fingerprint with a trusted source before approving it. Key and agent authentication do not require a saved password. For FTPS, the certificate must be valid for the selected host and trusted by the system or the selected PEM CA bundle. Plain FTP displays its unencrypted status. FTP/FTPS passwords stay in memory until disconnect and are never written to site JSON or command-line arguments. **Advanced…** opens the Advanced Site Settings: initial directories, SSH key, TLS CA file, shell, proxy, tunnel and protocol options. For WebDAV, enter the endpoint path in WebDAV path; Basic authentication and ETag-conditional replacement are supported. For S3, enter the access key ID as user name and the secret access key as password, plus an optional session token. Set the endpoint, region and initial `/bucket` path; `/` lists all buckets.
 
-The application keeps its own host-key store and site settings in `~/Library/Application Support/WinSCPMac/`. It deliberately disables SSH config loading (`-F /dev/null`), forwarding, and local commands. User SSH config aliases, PuTTY `.ppk` keys, and imported WinSCP password blobs are not currently supported; use the Proxy and Tunnel pages instead of SSH config. A changed trusted host key fails verification; there is no automatic reset or insecure bypass.
+The application keeps its own host-key store and site settings in `~/Library/Application Support/SyncSCP/`. It deliberately disables SSH config loading (`-F /dev/null`), forwarding, and local commands. User SSH config aliases, PuTTY `.ppk` keys, and imported WinSCP password blobs are not currently supported; use the Proxy and Tunnel pages instead of SSH config. A changed trusted host key fails verification; there is no automatic reset or insecure bypass.
 
 Select local files and choose **Upload** (`⌘⇧U`), or select remote files and choose **Download** (`⌘⇧D`). Double-click folders to browse and remote text files to edit. File operations are also available in the context menu and the macOS menu bar.
 
@@ -94,7 +100,7 @@ For the complete SFTP + SCP + FTP + FTPS + WebDAV + S3 suite, install the isolat
 ./scripts/test-ssh.sh --all -c release
 ```
 
-The application has no Python dependency. The FTP fixture uses independent pyftpdlib servers and generated certificates in a disposable localhost directory. It covers plain FTP, both FTPS modes, legacy/sparse listings, wrong credentials, permission errors, cancellation, file integrity, timestamps, replacement conflicts, symlink deletion, untrusted certificates, hostname mismatch, and rejection of TLS downgrade. `./scripts/test-ftp.sh` runs this fixture separately; network fixtures are explicitly skipped when unavailable during the offline test command. `./scripts/test-webdav.sh` uses an independent WsgiDAV/Cheroot HTTP/HTTPS fixture with real transfers, conditional MOVE, generated certificates, authentication/read-only errors, cancellation, redirect protection, and partial-status handling. [WebDAV limits](docs/WEBDAV.md) include destination `?`/`;` refusal, no POSIX chmod/upload mtime preservation, and strong ETags being required for replacement. `./scripts/test-s3.sh` starts two disposable, localhost-only MinIO containers (HTTP and HTTPS with a generated CA) from a digest-pinned image. It covers transfers, multipart uploads, conditional writes, rename, cancellation and abort cleanup, read-only and wrong-credential errors, and TLS trust. `WINSCP_SKIP_S3=1` explicitly skips S3 where Docker is unavailable.
+The application has no Python dependency. The FTP fixture uses independent pyftpdlib servers and generated certificates in a disposable localhost directory. It covers plain FTP, both FTPS modes, legacy/sparse listings, wrong credentials, permission errors, cancellation, file integrity, timestamps, replacement conflicts, symlink deletion, untrusted certificates, hostname mismatch, and rejection of TLS downgrade. `./scripts/test-ftp.sh` runs this fixture separately; network fixtures are explicitly skipped when unavailable during the offline test command. `./scripts/test-webdav.sh` uses an independent WsgiDAV/Cheroot HTTP/HTTPS fixture with real transfers, conditional MOVE, generated certificates, authentication/read-only errors, cancellation, redirect protection, and partial-status handling. [WebDAV limits](docs/WEBDAV.md) include destination `?`/`;` refusal, no POSIX chmod/upload mtime preservation, and strong ETags being required for replacement. `./scripts/test-s3.sh` starts two disposable, localhost-only MinIO containers (HTTP and HTTPS with a generated CA) from a digest-pinned image. It covers transfers, multipart uploads, conditional writes, rename, cancellation and abort cleanup, read-only and wrong-credential errors, and TLS trust. `SYNCSCP_SKIP_S3=1` explicitly skips S3 where Docker is unavailable.
 
 See [verification results](docs/VERIFICATION.md), [architecture](docs/ARCHITECTURE.md), [feature parity](docs/PARITY.md), and [contributing](CONTRIBUTING.md). [Türkçe](README.tr.md).
 

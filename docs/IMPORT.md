@@ -24,7 +24,7 @@ Nothing is written until **Import**. The preview lists every site with its proto
 - **Paths:** inside a Wine/Whisky/CrossOver prefix, `C:\…` paths are resolved through the prefix's `dosdevices`. Local folders and keys are therefore found where WinSCP used them.
 - **Keys:**
   - PuTTY `.ppk` keys without a passphrase (formats 2 and 3; RSA, Ed25519, ECDSA) are converted to OpenSSH format, after the file's MAC is verified;
-  - converted keys go into `~/Library/Application Support/WinSCPMac/keys` with owner-only access, and a file shared by several sites is converted once;
+  - converted keys go into `~/Library/Application Support/SyncSCP/keys` with owner-only access, and a file shared by several sites is converted once;
   - OpenSSH keys at resolvable paths are referenced in place.
 - **Host keys:** keys trusted in WinSCP (`SshHostKeys`: Ed25519, RSA, ECDSA in PuTTY's format) are converted to OpenSSH `known_hosts` lines. A different key already trusted for the same host is never replaced; it is reported instead.
 - **Backup:** `sites.json` and `known_hosts` are copied to `backups/before-import-…` before anything changes.

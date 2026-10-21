@@ -1,11 +1,13 @@
-# WinSCP macOS topluluk portu
+# syncSCP
 
-WinSCP'nin çift panelli Commander iş akışını macOS'a taşımayı hedefleyen, SwiftUI/AppKit tabanlı açık kaynak proje. Lisans: **GPL-3.0-or-later**.
+SFTP, SCP, FTP/FTPS, WebDAV ve S3 için yerel bir macOS dosya yöneticisi. WinSCP'nin çift panelli Commander iş akışını örnek alır; SwiftUI/AppKit ile yazıldı. Lisans: **GPL-3.0-or-later**.
 
-**0.12.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
+Projenin eski adı "WinSCP for macOS" idi. Bağımsız bir projedir; WinSCP ile bağlantısı yoktur ve WinSCP tarafından desteklenmez. Windows WinSCP'deki sitelerinizi içe aktarabilir.
+
+**0.13.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
 
 <p align="center">
-  <img src="docs/screenshots/commander.png" alt="WinSCP for macOS Commander penceresi" width="100%"/>
+  <img src="docs/screenshots/commander.png" alt="syncSCP Commander penceresi" width="100%"/>
 </p>
 
 | Login | Advanced Site Settings |
@@ -23,7 +25,7 @@ Ekran görüntüleri örnek veriler içerir.
 ```sh
 ./scripts/swift.sh test
 ./scripts/build-app.sh
-open "dist/WinSCP for macOS.app"
+open "dist/syncSCP.app"
 ```
 
 macOS 13+ ve Swift 5.9+ içeren Xcode araçları gerekir. Apple Silicon + Intel paketi için `./scripts/build-app.sh --universal` kullanın.
@@ -86,5 +88,7 @@ WinSCP Commander tuşları Files ▸ Commander Keys altında (F2 yeniden adland�
 - Yüklenmemiş değişiklik içeren kopyalar hiçbir zaman silinmiyor.
 
 0.12.0 ile iki panelin işlem çubuğuna **New ▾** menüsü eklendi: Folder… (F7) ve File… (⇧F4, ⌘⌥N). Yeni dosya boş oluşturuluyor; aynı adda bir dosya varsa üzerine yazılmıyor. Uzak panelde oluşturulan dosya hemen editörde açılıyor.
+
+0.13.0 ile proje **syncSCP** adını aldı. Uygulama artık `syncSCP.app`, paket kimliği `io.github.oguzhankrcb.syncscp`. İlk açılışta `~/Library/Application Support/WinSCPMac` klasörü (siteler, `known_hosts`, çevrilmiş anahtarlar, düzenlemeler, yedekler) `~/Library/Application Support/SyncSCP` altına kopyalanır ve kayıtlı anahtar yolları yeni klasöre çevrilir. Eski klasör yedek olarak bırakılır; her şey yolundaysa kendiniz silebilirsiniz. Varsayılan harici editör ayarı da taşınır.
 
 Tam WinSCP betik uyumluluğu, tünelleme, aktarımı kaldığı yerden sürdürme ve tam özellik eşitliği henüz yoktur. Ayrıntılar: [özellik tablosu](docs/PARITY.md), [İngilizce kullanım ve mimari](README.md).

@@ -3,7 +3,7 @@
 # Uses only generated test keys; does not change ~/.ssh or system SSH settings.
 set -euo pipefail
 TASK_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TASK_FIXTURE="$(mktemp -d "${TMPDIR:-/tmp}/winscp-ssh-e2e.XXXXXX")"
+TASK_FIXTURE="$(mktemp -d "${TMPDIR:-/tmp}/syncscp-ssh-e2e.XXXXXX")"
 SSH_DAEMON_PID=""
 SCP_DAEMON_PID=""
 cleanup() {
@@ -57,9 +57,9 @@ for attempt in {1..30}; do
     if ssh-keyscan -T 1 -p "$TASK_SCP_PORT" -t ed25519 127.0.0.1 >/dev/null 2>&1; then break; fi
     sleep 0.1
 done
-export WINSCP_TEST_SCP_PORT="$TASK_SCP_PORT"
-export WINSCP_TEST_SSH_FIXTURE="$TASK_FIXTURE"
-export WINSCP_TEST_SSH_PORT="$TASK_PORT"
+export SYNCSCP_TEST_SCP_PORT="$TASK_SCP_PORT"
+export SYNCSCP_TEST_SSH_FIXTURE="$TASK_FIXTURE"
+export SYNCSCP_TEST_SSH_PORT="$TASK_PORT"
 if [ "${1:-}" = "--serve" ]; then
     cp "$TASK_ROOT/README.tr.md" "$TASK_FIXTURE/remote/README.txt"
     printf 'Fixture directory: %s\nSFTP port: %s\nSCP-only port: %s\nStop with Ctrl-C; all fixture files and keys are removed.\n' "$TASK_FIXTURE" "$TASK_PORT" "$TASK_SCP_PORT"

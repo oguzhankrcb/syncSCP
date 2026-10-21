@@ -1,6 +1,6 @@
 # Notices
 
-This is an independent community macOS implementation of selected WinSCP workflows. It is not produced, supported, or endorsed by the upstream WinSCP project. WinSCP is the name of the original project by Martin Prikryl and contributors.
+syncSCP (formerly "WinSCP for macOS") is an independent community macOS implementation of selected WinSCP workflows. It is not produced, supported, or endorsed by the upstream WinSCP project. WinSCP is the name of the original project by Martin Prikryl and contributors.
 
 Original code added in this repository is made available under GPL-3.0-or-later. The complete GPL version 3 is included in LICENSE. This software comes without warranty.
 

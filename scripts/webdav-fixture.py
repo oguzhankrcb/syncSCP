@@ -28,7 +28,7 @@ remote.mkdir()
 (fixture / 'local' / 'upload.txt').write_text('Native WebDAV upload.\n', encoding='utf-8')
 now = datetime.datetime.now(datetime.timezone.utc)
 ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'WinSCP WebDAV disposable CA')])
+ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'syncSCP WebDAV disposable CA')])
 ca = (x509.CertificateBuilder().subject_name(ca_name).issuer_name(ca_name).public_key(ca_key.public_key())
       .serial_number(x509.random_serial_number()).not_valid_before(now-datetime.timedelta(days=1))
       .not_valid_after(now+datetime.timedelta(days=2)).add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
@@ -57,7 +57,7 @@ class FixtureProvider(FilesystemProvider):
 app = WsgiDAVApp({
     'provider_mapping': {'/dav': FixtureProvider(str(remote)), '/readonly': FilesystemProvider(str(remote), readonly=True)},
     'http_authenticator': {'accept_basic': True, 'accept_digest': False, 'default_to_digest': False},
-    'simple_dc': {'user_mapping': {'*': {'winscp': {'password': 'test-only-password', 'roles': ['admin']}}}},
+    'simple_dc': {'user_mapping': {'*': {'syncscp': {'password': 'test-only-password', 'roles': ['admin']}}}},
     'verbose': 0,
     'logging': {'enable': False},
     'dir_browser': {'enable': False},

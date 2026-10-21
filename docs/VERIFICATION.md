@@ -1,5 +1,15 @@
 # Verification record
 
+## 0.13.0 — Renamed to syncSCP
+
+Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **112 XCTest cases, zero failures, zero skips**. Older entries below keep the names that were current at the time (WinSCPMac, WinSCPCore, `WINSCP_*`).
+
+- Modules, bundle, bundle identifier, Keychain service, environment variables and archive names were renamed (see README).
+- New unit test: a legacy data folder is copied once, paths into it are rewritten, the old folder stays intact, and a second run does nothing.
+- The migration was also run against a copy of the real local data folder (the original was only read): every site and every key path came across, key files existed at their new paths, and `known_hosts` was complete. The copy was deleted.
+- The FTP fixture's welcome text changed with the name, so one size expectation moved from 50 to 51 bytes.
+- README screenshots were re-rendered offscreen with the new window title. The app was packaged and codesign-verified. **The packaged app's first launch (which performs the real migration) was not run by me.**
+
 ## 0.12.0 — New file
 
 Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **111 XCTest cases, zero failures, zero skips**.

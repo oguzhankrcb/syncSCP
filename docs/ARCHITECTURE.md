@@ -6,9 +6,9 @@ Upstream's forms and components use Embarcadero VCL; its nonvisual core also use
 
 ## Layers
 
-`WinSCPCore` contains file/session models, site persistence, protocol-independent `RemoteSession` and `RemoteFileClient` interfaces, serialized SFTP/SCP/FTP/WebDAV/S3 actors, an SFTP v3 codec, OpenSSH process transport, and the synchronization planner. The original `CCurlTransport` C bridge wraps macOS libcurl for FTP/FTPS. There are no downloaded application package dependencies.
+`SyncSCPCore` contains file/session models, site persistence, protocol-independent `RemoteSession` and `RemoteFileClient` interfaces, serialized SFTP/SCP/FTP/WebDAV/S3 actors, an SFTP v3 codec, OpenSSH process transport, and the synchronization planner. The original `CCurlTransport` C bridge wraps macOS libcurl for FTP/FTPS. There are no downloaded application package dependencies.
 
-`WinSCPMac` uses SwiftUI/AppKit for the Commander window, native tables and menus, connection settings, host trust, Keychain-backed askpass, queue, editor, and reviewed synchronization. `CommanderModel` is isolated to the main actor. The SFTP actor performs blocking pipe I/O away from the UI actor; each protocol operation is serialized. Only one session and one transfer worker are active at a time.
+`SyncSCP` uses SwiftUI/AppKit for the Commander window, native tables and menus, connection settings, host trust, Keychain-backed askpass, queue, editor, and reviewed synchronization. `CommanderModel` is isolated to the main actor. The SFTP actor performs blocking pipe I/O away from the UI actor; each protocol operation is serialized. Only one session and one transfer worker are active at a time.
 
 The UI routes every remote file operation through `RemoteSession`, which chooses the backend at login. SFTP, SCP, FTP, WebDAV and S3 share the same tables, queue, editor, and synchronization planner. Existing saved sites decode as SFTP when the newly added protocol/CA fields are absent.
 
@@ -32,7 +32,7 @@ SCP uses one authenticated OpenSSH master with a private control socket and sepa
 
 SFTP strings are byte-length-prefixed UTF-8; SFTP directory entries are validated before becoming local child paths. SFTP filenames are never shell-escaped or interpolated into commands. None of the backends parses `ls` output. Packet lengths, attribute flags, response IDs, and directory counts are bounded. The client rejects non-UTF-8 names rather than creating a different local name.
 
-Uploads create a unique exclusive file in the remote destination directory, write 64 KiB blocks, close it, set basic permissions/mtime, then rename into place. Unapproved replacement uses v3 rename's no-replace semantics. Approved replacement requires `posix-rename@openssh.com`; no delete-then-rename fallback is used. Cancelled/failed transfers clean their temporary files when the connection is still usable. Network loss can leave a recognizable `.winscp-UUID.filepart` on the server.
+Uploads create a unique exclusive file in the remote destination directory, write 64 KiB blocks, close it, set basic permissions/mtime, then rename into place. Unapproved replacement uses v3 rename's no-replace semantics. Approved replacement requires `posix-rename@openssh.com`; no delete-then-rename fallback is used. Cancelled/failed transfers clean their temporary files when the connection is still usable. Network loss can leave a recognizable `.syncscp-UUID.filepart` on the server.
 
 The preceding paragraph describes SFTP. FTP also uploads through UUID temporary files and commits with RNFR/RNTO, with no delete-first fallback. FTP has no standard atomic conditional rename, so checks for unapproved replacement and reviewed snapshots are best-effort, with server-dependent rename behavior. Timestamps/permissions are preserved when MFMT/SITE CHMOD and metadata support are available. Recursive deletion uses Unix LIST types to recognize symlinks even when MLSD follows them.
 

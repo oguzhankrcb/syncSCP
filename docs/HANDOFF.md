@@ -1,6 +1,6 @@
-# WinSCP macOS — oturum devir notu
+# syncSCP — oturum devir notu
 
-Son güncelleme: 21 Ekim 2026 (0.12.0 / yeni dosya). Bu belge, geliştirmeyi yeni bir oturumda mevcut dosyalardan sürdürmek için hazırlanmıştır.
+Son güncelleme: 21 Ekim 2026 (0.13.0 / syncSCP adı). Bu belge, geliştirmeyi yeni bir oturumda mevcut dosyalardan sürdürmek için hazırlanmıştır.
 
 ## Amaç ve mevcut yaklaşım
 
@@ -10,11 +10,22 @@ Kullanıcının hedefi WinSCP'nin macOS üzerinde mümkün olduğunca bire bir �
 /Users/oguzhankaracabay/Desktop/projects/WinSCP-Mac-Port
 ```
 
-Mevcut uygulama **0.12.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
+Mevcut uygulama **0.13.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
 
 Swift Package Manager kullanılıyor; hedef macOS 13+, paket araç sürümü 5.9. Son doğrulamalar Apple Silicon üzerinde Swift 6.2 ile yapıldı. Uygulama macOS'un OpenSSH, libcurl ve CryptoKit bileşenlerini kullanıyor; indirilmiş Swift paket bağımlılığı, AWS SDK, Electron, Wine veya Python çalışma zamanı bağımlılığı yok. Python ve Docker yalnızca bağımsız test sunucuları için kullanılıyor.
 
-**Git durumu:** `origin` = kullanıcının **private** GitHub reposu `https://github.com/oguzhankrcb/WinSCP-Mac-Port` (21 Ekim 2026'da oluşturuldu). `main` dalında ilk commit (`c7b6c76`, 0.4.0 içeri aktarımı) push edildi. 0.5.0 S3 ve 0.6.0 ayar çalışmaları ayrı commit'lerdir; push durumunu `git status -sb` ile kontrol et. Proje kökündeki `WinSCP for macOS — UI mockup.html` kullanıcının dışa aktardığı mockup kopyasıdır; untracked bırakıldı, commit'lenmedi. Repo private kalmalı; public yapmak, release veya PR açmak ayrıca yetki ister. `dist/`, `.build/` ve `upstream/winscp/` git dışında tutuluyor. Yine de `git clean`, reset gibi dosya kaybettirecek işlemler yapma.
+**Git durumu:** `origin` = kullanıcının **private** GitHub reposu `https://github.com/oguzhankrcb/syncSCP` (21 Ekim 2026'da `WinSCP-Mac-Port` olarak oluşturuldu, 0.13.0'da yeniden adlandırıldı; GitHub eski adresi yönlendiriyor). `main` dalında ilk commit (`c7b6c76`, 0.4.0 içeri aktarımı) push edildi. 0.5.0 S3 ve 0.6.0 ayar çalışmaları ayrı commit'lerdir; push durumunu `git status -sb` ile kontrol et. Proje kökündeki `syncSCP — UI mockup.html` kullanıcının dışa aktardığı mockup kopyasıdır; untracked bırakıldı, commit'lenmedi. Repo private kalmalı; public yapmak, release veya PR açmak ayrıca yetki ister. `dist/`, `.build/` ve `upstream/winscp/` git dışında tutuluyor. Yine de `git clean`, reset gibi dosya kaybettirecek işlemler yapma.
+
+## 0.13.0: syncSCP adı
+
+Proje "WinSCP for macOS" yerine **syncSCP** adını aldı (WinSCP markasıyla karışmaması için). Değişenler:
+
+- Uygulama `dist/syncSCP.app`, executable `SyncSCP`, bundle id `io.github.oguzhankrcb.syncscp`; modüller `SyncSCPCore` / `SyncSCP`, testler `SyncSCPCoreTests`.
+- Keychain servisi `io.github.oguzhankrcb.syncscp.session`; ortam değişkenleri `SYNCSCP_*` (ör. `SYNCSCP_SKIP_S3`); ZIP'ler `SyncSCP-<sürüm>-*.zip`.
+- Veri klasörü `~/Library/Application Support/SyncSCP`. `SiteStore.migrateLegacy` ilk açılışta eski `WinSCPMac` klasörünü bir kez kopyalar ve `sites.json`'daki eski klasöre işaret eden mutlak yolları (anahtarlar vb.) yeni klasöre çevirir. Eski klasör yedek olarak kalır, silinmez.
+- `ExternalEditorPath` tercihi eski `org.winscp.community.mac` UserDefaults alanından taşınır.
+- Uyumluluk için WinSCP adı kalan yerler bilinçli: "Import from WinSCP", `WinSCPImport`, "like WinSCP" yorumları, winscp.net yardım linkleri, NOTICE.
+- Yerel proje dizininin adı hâlâ `WinSCP-Mac-Port`; değiştirmek gerekmez.
 
 ## Çalışan özellikler
 
@@ -48,38 +59,38 @@ Swift Package Manager kullanılıyor; hedef macOS 13+, paket araç sürümü 5.9
 
 SSH parolası/passphrase'i bağlantı kurulurken rastgele kimlikli geçici Keychain kaydıyla uygulamanın kendi SSH_ASKPASS yardımcısına aktarılır; başarı veya hata sonrasında silinir. Login sırasında anormal çökme olursa artık kayıt kalabilir; stale credential temizliği eksik. FTP/WebDAV parolaları oturum boyunca bellekte tutulur.
 
-Uygulamanın site ve known_hosts verileri `~/Library/Application Support/WinSCPMac/` altında. Kullanıcının SSH config'i değiştirilmez; SSH bağlantıları `-F /dev/null` ile açılır. Bu nedenle SSH config alias, jump host ve proxy desteği henüz yok.
+Uygulamanın site ve known_hosts verileri `~/Library/Application Support/SyncSCP/` altında. Kullanıcının SSH config'i değiştirilmez; SSH bağlantıları `-F /dev/null` ile açılır. Bu nedenle SSH config alias, jump host ve proxy desteği henüz yok.
 
 ## Kodun haritası
 
 Aşağıdaki yolların tamamı proje dizinine göredir:
 
-- `Package.swift`: `CCurlTransport`, `WinSCPCore`, `WinSCPMac`, `WinSCPCoreTests` hedefleri.
-- `Sources/WinSCPCore/Models.swift`: protokol/site/dosya modelleri, yerel dosya bilgisi, hata ve iptal yapıları.
-- `Sources/WinSCPCore/RemoteSession.swift`: protokolden bağımsız `RemoteFileClient` arayüzü ve backend seçimi. Yeni protokoller bu katmana bağlanmalı.
-- `Sources/WinSCPCore/Synchronization.swift`, `SiteStore.swift`: eşitleme planı ve kayıtlı bağlantılar.
-- `Sources/WinSCPCore/SiteSettings.swift`: tüm Advanced Site Settings alanları, lenient decoding ve doğrulama. `SSHTransport.swift` içindeki `SSHOptions` bunları OpenSSH seçeneklerine, `CurlFTPTransport.swift` içindeki `CurlNetwork` ise libcurl'e çevirir.
-- `Sources/WinSCPMac/AdvancedSiteSettings.swift`: protokole göre ağaçlı ayar penceresi, durum etiketleri, cipher/kex sıralama listesi ve site rengi.
+- `Package.swift`: `CCurlTransport`, `SyncSCPCore`, `SyncSCP`, `SyncSCPCoreTests` hedefleri.
+- `Sources/SyncSCPCore/Models.swift`: protokol/site/dosya modelleri, yerel dosya bilgisi, hata ve iptal yapıları.
+- `Sources/SyncSCPCore/RemoteSession.swift`: protokolden bağımsız `RemoteFileClient` arayüzü ve backend seçimi. Yeni protokoller bu katmana bağlanmalı.
+- `Sources/SyncSCPCore/Synchronization.swift`, `SiteStore.swift`: eşitleme planı ve kayıtlı bağlantılar.
+- `Sources/SyncSCPCore/SiteSettings.swift`: tüm Advanced Site Settings alanları, lenient decoding ve doğrulama. `SSHTransport.swift` içindeki `SSHOptions` bunları OpenSSH seçeneklerine, `CurlFTPTransport.swift` içindeki `CurlNetwork` ise libcurl'e çevirir.
+- `Sources/SyncSCP/AdvancedSiteSettings.swift`: protokole göre ağaçlı ayar penceresi, durum etiketleri, cipher/kex sıralama listesi ve site rengi.
 - `SFTPClient.swift`, `SFTPPacket.swift`, `SSHTransport.swift`: SFTP ve OpenSSH taşıması.
 - `SCPClient.swift`, `SSHCommandChannel.swift`: legacy SCP, uzak komut kanalları ve ortak SSH master bağlantısı.
 - `FTPClient.swift`, `FTPListing.swift`, `CurlFTPTransport.swift`: FTP/FTPS.
 - `WebDAVClient.swift`, `WebDAVListing.swift`, `CurlHTTPTransport.swift`: WebDAV, URL/ETag/XML doğrulamaları. HTTP taşıması S3 için de kullanılır (`basicAuth: false`, hazır imzalı URL, `offset` ile aralıklı upload).
 - `S3Client.swift`, `S3Listing.swift`, `S3Signer.swift`: S3 actor'ı, yol/URL eşlemesi, liste/hata XML'i, SigV4 ve SHA-256.
 - `Sources/CCurlTransport/`: macOS libcurl için özgün C köprüsü; FTP ve HTTP girişleri ayrı. HTTP girişinde `basic_auth`, `pread` ile aralıklı upload (`ranged_upload`/`upload_offset`), HEAD için NOBODY ve `PATH_AS_IS` var.
-- `Sources/WinSCPMac/CommanderModel.swift`: MainActor uygulama durumu, kuyruk, editör, klasör aktarımları ve eşitleme.
-- `CommanderView.swift`, `ConnectionSheet.swift`, `HostTrust.swift`, `WinSCPMacApp.swift`: arayüz, bağlantı, güven, menüler ve askpass. Proxy/tunnel varken `HostTrust` sunucu anahtarını OpenSSH `accept-new` ile geçici bir dosyaya yakalar; tunnel host'un anahtarı önce onaylatılır.
-- `Tests/WinSCPCoreTests/`: birim ve gerçek sunucu entegrasyon testleri.
+- `Sources/SyncSCP/CommanderModel.swift`: MainActor uygulama durumu, kuyruk, editör, klasör aktarımları ve eşitleme.
+- `CommanderView.swift`, `ConnectionSheet.swift`, `HostTrust.swift`, `SyncSCPApp.swift`: arayüz, bağlantı, güven, menüler ve askpass. Proxy/tunnel varken `HostTrust` sunucu anahtarını OpenSSH `accept-new` ile geçici bir dosyaya yakalar; tunnel host'un anahtarı önce onaylatılır.
+- `Tests/SyncSCPCoreTests/`: birim ve gerçek sunucu entegrasyon testleri.
 - `scripts/`: Swift wrapper, uygulama/paket üretimi ve geçici test sunucuları.
 
 İlk okunacak belgeler: `README.tr.md`, `docs/ARCHITECTURE.md`, `docs/PARITY.md`, `docs/VERIFICATION.md`. Protokol ayrıntıları ve sınırlar: `docs/FTP.md`, `docs/SCP.md`, `docs/WEBDAV.md`, `docs/S3.md`. Upstream kaynak referansları: `upstream/REFERENCE.md`.
 
 ## Son doğrulama ve mevcut çıktılar
 
-0.12.0'ın son kaynakları üzerinde hem debug hem release testleri tamamlandı:
+0.13.0'ın son kaynakları üzerinde hem debug hem release testleri tamamlandı:
 
 ```text
-./scripts/test-ssh.sh --all             → 111 XCTest, 0 failure, 0 skip   (0.12.0)
-./scripts/test-ssh.sh --all -c release  → 111 XCTest, 0 failure, 0 skip   (0.12.0)
+./scripts/test-ssh.sh --all             → 112 XCTest, 0 failure, 0 skip   (0.13.0)
+./scripts/test-ssh.sh --all -c release  → 112 XCTest, 0 failure, 0 skip   (0.13.0)
 ```
 
 Son çalıştırmalarda compiler warning yok. Testler gerçek OpenSSH/SFTP, SFTP subsystem'i kapalı ayrı SCP sunucusu, pyftpdlib 2.2.0 FTP/FTPS, WsgiDAV 4.3.5 / Cheroot 11.1.2 HTTP/HTTPS ve Docker'da iki MinIO (HTTP + HTTPS) sunucusunu kullanıyor. MinIO imajı digest ile sabitlenmiş `bitnamilegacy/minio:2025.7.23`; resmî topluluk MinIO imajları artık yayımlanmıyor. Geçici anahtarlar, CA ve dosyalar üretildi; kullanıcının üretim sunucusu/kimlik bilgileri kullanılmadı.
@@ -89,14 +100,14 @@ Son çalıştırmalarda compiler warning yok. Testler gerçek OpenSSH/SFTP, SFTP
 Mevcut çıktılar:
 
 ```text
-dist/WinSCP for macOS.app
-dist/WinSCPMac-0.12.0-universal.zip
-dist/WinSCPMac-0.12.0-source.zip   (untracked mockup HTML'i de içeriyor; script untracked dosyaları da paketler)
+dist/syncSCP.app
+dist/SyncSCP-0.13.0-universal.zip
+dist/SyncSCP-0.13.0-source.zip   (untracked mockup HTML'i de içeriyor; script untracked dosyaları da paketler)
 ```
 
-Universal sürüm arm64 ve x86_64 içeriyor, ad-hoc imzalı ve strict codesign kontrolünden geçti. **Fiziksel Intel testi, eski macOS testi, Developer ID imzası ve notarization yapılmadı.** GitHub Actions workflow'u repo push edildiği için GitHub'da tetiklenebilir; sonucunu doğrulamadan başarılı olduğu iddia edilmemeli. Hosted macOS runner'larda Docker olmadığından CI `WINSCP_SKIP_S3=1` kullanır; S3 testleri orada skip olur. Önceki 0.1–0.4 ZIP'leri de duruyor; güncel paket 0.12.0.
+Universal sürüm arm64 ve x86_64 içeriyor, ad-hoc imzalı ve strict codesign kontrolünden geçti. **Fiziksel Intel testi, eski macOS testi, Developer ID imzası ve notarization yapılmadı.** GitHub Actions workflow'u repo push edildiği için GitHub'da tetiklenebilir; sonucunu doğrulamadan başarılı olduğu iddia edilmemeli. Hosted macOS runner'larda Docker olmadığından CI `SYNCSCP_SKIP_S3=1` kullanır; S3 testleri orada skip olur. Önceki 0.1–0.4 ZIP'leri de duruyor; güncel paket 0.13.0 (eski ZIP'ler `WinSCPMac-*` adını taşır).
 
-Son kayıtlar `.build/newfile-debug-tests.log`, `.build/newfile-release-tests.log`, `.build/newfile-package.log` içinde.
+Son kayıtlar `.build/rename-debug-tests.log`, `.build/rename-release-tests.log`, `.build/rename-package.log` içinde.
 
 ## Çalıştırma ve geliştirme komutları
 
@@ -107,7 +118,7 @@ cd /Users/oguzhankaracabay/Desktop/projects/WinSCP-Mac-Port
 ./scripts/swift.sh test
 
 # İlk kurulum veya test ortamını yeniden hazırlama; Python 3.11+ gerekir. S3 için Docker çalışıyor olmalı.
-# Docker yoksa S3'ü açıkça atlamak için: WINSCP_SKIP_S3=1 ./scripts/test-ssh.sh --all
+# Docker yoksa S3'ü açıkça atlamak için: SYNCSCP_SKIP_S3=1 ./scripts/test-ssh.sh --all
 ./scripts/setup-protocol-tests.sh
 
 # Tüm gerçek protokol sunucularıyla testler.
@@ -118,7 +129,7 @@ cd /Users/oguzhankaracabay/Desktop/projects/WinSCP-Mac-Port
 ./scripts/build-app.sh --debug
 ./scripts/build-app.sh --universal
 ./scripts/package-release.sh
-open "dist/WinSCP for macOS.app"
+open "dist/syncSCP.app"
 ```
 
 Manuel sunucu için `./scripts/test-ssh.sh --serve`, `./scripts/test-ftp.sh --serve`, `./scripts/test-webdav.sh --serve` veya `./scripts/test-s3.sh --serve` kullanılabilir. Çıktıları port, geçici dizin ve güven bilgilerini verir; Ctrl-C sunucuyu ve dosyalarını temizler. Sistem Remote Login ayarı değiştirilmez. Swift wrapper önbellekleri `.build` altında tutar. Test bağımlılıkları proje içindeki izole venv'lere kurulur; uygulamaya paketlenmez.
@@ -129,7 +140,7 @@ Yerel tool sandbox'ında port açma, bağımlılık indirme veya `iconutil` izin
 
 1. **Yerel dosya listesi ve eşitleme aynı metadata kaynağını kullanmalı.** `LocalFiles.info` Darwin `lstat` ile no-follow bilgi toplar. Foundation attribute okumaları home/cloud dosyalarında xattr nedeniyle UI'ı kilitlemişti. Eşitleme revalidation'ı da aynı helper'ı kullanmalı; Foundation/POSIX tarih dönüşümlerini karıştırmak nanosaniye farklarıyla sahte “dosya değişti” çakışmaları oluşturmuştu.
 2. **SCP bağlantı ömrünü koru.** SSH master'ın uzak `cat >/dev/null` komutu uygulamanın sahip olduğu stdin pipe'a bağlı. Sadece `ssh -N` kullanmaya dönmek çökme sonrası yetim bağlantı bırakabilir. Kontrol soketi yoksa alt kanallar `BatchMode=yes` ve `ProxyCommand=/usr/bin/false` ile yeniden parola istemeden başarısız olmalı. No-clobber dosya yayımlama `link` aracıyla yapılır; `ln` hedef klasörü farklı yorumlayabilir.
-3. **WebDAV geçici yükleme bir koleksiyonun içinde olmalı.** Özel `.winscp-UUID.filepart/payload` yolu kullanılıyor. İptalde sahip olunan üst koleksiyon silinir; böylece gecikmiş PUT temizlenmiş payload'ı yeniden oluşturamaz. Tek başına geçici dosyaya dönmek artık dosya yarışını geri getirir.
+3. **WebDAV geçici yükleme bir koleksiyonun içinde olmalı.** Özel `.syncscp-UUID.filepart/payload` yolu kullanılıyor. İptalde sahip olunan üst koleksiyon silinir; böylece gecikmiş PUT temizlenmiş payload'ı yeniden oluşturamaz. Tek başına geçici dosyaya dönmek artık dosya yarışını geri getirir.
 4. **WebDAV hedef sürüm kontrolünü bozma.** MOVE üzerindeki `If-Match` kaynak nesneyi koşullar. Hedef ETag için tagged WebDAV `If` başlığı kullanılıyor; kaynak tag'i ayrıca korunuyor. RFC'nin izin verdiği absolute-path resource tag biçimi WsgiDAV ile doğrulandı.
 5. **WebDAV `?` / `;` yazma engelini testsiz kaldırma.** WsgiDAV Destination'ı parse etmeden önce percent-decode ederek farklı hedefe yazabilir. Mevcut sürüm bu hedeflere upload/rename'i yazma başlamadan reddeder; mevcut dosyaları listeleme/okuma mümkün.
 6. XML/URL sınırları, DTD/entity reddi, origin/path doğrulaması, güçlü ETag gereksinimi, TLS/host-key kontrolleri ve symlink politikası korunmalı. HTTP hata/redirect gövdeleri indirilen dosyaya eklenmemeli; 207 MOVE/DELETE tam başarı sayılmamalı.
@@ -156,12 +167,12 @@ Artık login'de site otomatik kaydedilmiyor. **0.12.0:** işlem çubuğunda New 
 
 **0.11.0:** harici editör desteği var. İlgili kod:
 
-- `RemoteEdit` ve `FileChangeMonitor`: WinSCPCore içinde
+- `RemoteEdit` ve `FileChangeMonitor`: SyncSCPCore içinde
 - Edit With / Open With: `EditorApps`
 - Settings (⌘,): `PreferencesView` — varsayılan editör UserDefaults'ta `ExternalEditorPath` olarak tutuluyor
 - Editing sekmesi
 
-Düzenlemeler `Application Support/WinSCPMac/edits` altında, bağlantıya bağlı. Bağlantı kesilince izleme duruyor; yüklenmemiş kopyalar korunuyor.
+Düzenlemeler `Application Support/SyncSCP/edits` altında, bağlantıya bağlı. Bağlantı kesilince izleme duruyor; yüklenmemiş kopyalar korunuyor.
 
 **0.10.0:** SCP komutları WinSCP gibi tek kalıcı shell'de çalışıyor (`SCPSSHSession.run` / `persistentShell`). Bu, kullanıcının bildirdiği yavaş klasör açılmasını çözmek içindi. Transfer akışları ayrı kanal kullanıyor. Listelerde ".." satırı (`ParentRow`) ve tıklanabilir yol şeridi var. Olası sonraki hız işi: GNU stat listesinde dosya başına bir `stat` yerine toplu stat (Linux fixture'ı yok, test edilmeden yapılmamalı).
 
@@ -173,7 +184,7 @@ Düzenlemeler `Application Support/WinSCPMac/edits` altında, bağlantıya bağl
 - 3 PPK anahtarı OpenSSH'a çevrildi ve 19 siteye bağlandı
 - 34 host key eklendi
 
-Yedek `~/Library/Application Support/WinSCPMac/backups/` altında. İçe aktarılan sunuculara henüz giriş denenmedi. Bu sitelerin yerel klasörü Whisky bottle'ındaki `drive_c` altına çözülüyor; çünkü WinSCP'de `C:\` olarak kullanılıyordu.
+Yedek `~/Library/Application Support/SyncSCP/backups/` altında. İçe aktarılan sunuculara henüz giriş denenmedi. Bu sitelerin yerel klasörü Whisky bottle'ındaki `drive_c` altına çözülüyor; çünkü WinSCP'de `C:\` olarak kullanılıyordu.
 
 **Önceki plan notu:** Mockup: https://claude.ai/artifact/RcPqadNgvmoPmpCzifPjEc. Bu sürüm oturum sekmeleri, panel başına gezinme ve işlem çubukları, aktif panel yol şeridi, Rights/Owner sütunları, kuyruk paneli ve durum çubuğunu içeriyor. Login ekranı da mockup'taki gibi gruplu site ağacına geçmeli. Advanced Site Settings'te "Planned" kalan ayarlar (`docs/SETTINGS.md`) sonraki sürümlerde backend'e bağlanmalı.
 

@@ -16,11 +16,11 @@ jobs:
       - name: Test SFTP, SCP, FTP, both FTPS modes, HTTP/HTTPS WebDAV, and server identity verification
         # Hosted macOS runners have no Docker, so the MinIO-based S3 integration tests are skipped here.
         env:
-          WINSCP_SKIP_S3: '1'
+          SYNCSCP_SKIP_S3: '1'
         run: ./scripts/test-ssh.sh --all
       - name: Build and archive universal app and source
         run: ./scripts/package-release.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: WinSCPMac-development
-          path: dist/WinSCPMac-*.zip
+          name: SyncSCP-development
+          path: dist/SyncSCP-*.zip

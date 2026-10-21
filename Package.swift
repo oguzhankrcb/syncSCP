@@ -2,13 +2,13 @@
 import PackageDescription
 
 let package = Package(
-    name: "WinSCPMac",
+    name: "SyncSCP",
     platforms: [.macOS(.v13)],
-    products: [.executable(name: "WinSCPMac", targets: ["WinSCPMac"])],
+    products: [.executable(name: "SyncSCP", targets: ["SyncSCP"])],
     targets: [
         .target(name: "CCurlTransport", linkerSettings: [.linkedLibrary("curl")]),
-        .target(name: "WinSCPCore", dependencies: ["CCurlTransport"]),
-        .executableTarget(name: "WinSCPMac", dependencies: ["WinSCPCore"]),
-        .testTarget(name: "WinSCPCoreTests", dependencies: ["WinSCPCore"])
+        .target(name: "SyncSCPCore", dependencies: ["CCurlTransport"]),
+        .executableTarget(name: "SyncSCP", dependencies: ["SyncSCPCore"]),
+        .testTarget(name: "SyncSCPCoreTests", dependencies: ["SyncSCPCore"])
     ]
 )

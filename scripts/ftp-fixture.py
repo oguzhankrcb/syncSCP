@@ -24,11 +24,11 @@ fixture = Path(sys.argv[1])
 remote = fixture / "remote"
 remote.mkdir()
 (fixture / "local").mkdir()
-(remote / "welcome.txt").write_text("WinSCP FTP/FTPS fixture · İstanbul · 日本語\n", encoding="utf-8")
+(remote / "welcome.txt").write_text("syncSCP FTP/FTPS fixture · İstanbul · 日本語\n", encoding="utf-8")
 (fixture / "local" / "upload.txt").write_text("Native macOS transfer test\n", encoding="utf-8")
 now = datetime.datetime.now(datetime.timezone.utc)
 ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "WinSCP disposable test CA")])
+ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "syncSCP disposable test CA")])
 ca = (x509.CertificateBuilder().subject_name(ca_name).issuer_name(ca_name).public_key(ca_key.public_key())
       .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(days=1))
       .not_valid_after(now + datetime.timedelta(days=2)).add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
@@ -50,7 +50,7 @@ certificate = (x509.CertificateBuilder().subject_name(server_name).issuer_name(c
 os.chmod(fixture / "server.key", 0o600)
 
 authorizer = DummyAuthorizer()
-authorizer.add_user("winscp", "test-only-password", str(remote), perm="elradfmwMT")
+authorizer.add_user("syncscp", "test-only-password", str(remote), perm="elradfmwMT")
 authorizer.add_user("readonly", "test-only-password", str(remote), perm="elr")
 
 class Plain(FTPHandler):
@@ -86,7 +86,7 @@ servers = []
 ports = {}
 for name, handler in [("ftp", Plain), ("explicit", Explicit), ("implicit", Implicit), ("legacy", Legacy), ("sparse", SparseMetadata)]:
     handler.authorizer = authorizer
-    handler.banner = "WinSCP disposable localhost test fixture"
+    handler.banner = "syncSCP disposable localhost test fixture"
     server = FTPServer(("127.0.0.1", 0), handler)
     server.max_cons = 64
     servers.append(server)

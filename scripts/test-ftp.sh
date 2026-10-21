@@ -6,7 +6,7 @@ if [ ! -x "$TEST_PYTHON" ]; then
     echo 'Run ./scripts/setup-ftp-tests.sh first (Python 3.11+).' >&2
     exit 2
 fi
-TASK_FIXTURE="$(mktemp -d "${TMPDIR:-/tmp}/winscp-ftp-e2e.XXXXXX")"
+TASK_FIXTURE="$(mktemp -d "${TMPDIR:-/tmp}/syncscp-ftp-e2e.XXXXXX")"
 FTP_SERVER_PID=""
 cleanup() {
     if [ -n "$FTP_SERVER_PID" ]; then kill "$FTP_SERVER_PID" 2>/dev/null || true; wait "$FTP_SERVER_PID" 2>/dev/null || true; fi
@@ -21,10 +21,10 @@ for attempt in {1..100}; do
     sleep 0.1
 done
 if [ ! -f "$TASK_FIXTURE/ready.json" ]; then cat "$TASK_FIXTURE/server.log" >&2; exit 1; fi
-export WINSCP_TEST_FTP_FIXTURE="$TASK_FIXTURE"
+export SYNCSCP_TEST_FTP_FIXTURE="$TASK_FIXTURE"
 if [ "${1:-}" = "--serve" ]; then
     cat "$TASK_FIXTURE/ready.json"
-    printf '\nTest account: winscp / test-only-password\nCA file: %s/ca.pem\nStop with Ctrl-C to remove this fixture.\n' "$TASK_FIXTURE"
+    printf '\nTest account: syncscp / test-only-password\nCA file: %s/ca.pem\nStop with Ctrl-C to remove this fixture.\n' "$TASK_FIXTURE"
     wait "$FTP_SERVER_PID"
 elif [ "${1:-}" = "--with-webdav" ]; then
     shift

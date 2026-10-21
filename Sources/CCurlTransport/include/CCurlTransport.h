@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#ifndef WINSCP_CURL_TRANSPORT_H
-#define WINSCP_CURL_TRANSPORT_H
+#ifndef SYNCSCP_CURL_TRANSPORT_H
+#define SYNCSCP_CURL_TRANSPORT_H
 #include <stddef.h>
 #include <stdint.h>
 

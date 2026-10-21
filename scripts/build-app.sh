@@ -13,11 +13,11 @@ for argument in "$@"; do
 done
 "$TASK_ROOT/scripts/swift.sh" build -c "$BUILD_MODE" "${BUILD_ARCHES[@]}"
 BINARY_DIR="$("$TASK_ROOT/scripts/swift.sh" build -c "$BUILD_MODE" "${BUILD_ARCHES[@]}" --show-bin-path)"
-APP_BUNDLE="$TASK_ROOT/dist/WinSCP for macOS.app"
+APP_BUNDLE="$TASK_ROOT/dist/syncSCP.app"
 # Start from an empty bundle so files removed from the project never linger in a release.
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
-cp "$BINARY_DIR/WinSCPMac" "$APP_BUNDLE/Contents/MacOS/WinSCPMac"
+cp "$BINARY_DIR/SyncSCP" "$APP_BUNDLE/Contents/MacOS/SyncSCP"
 cp "$TASK_ROOT/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 cp "$TASK_ROOT/LICENSE" "$APP_BUNDLE/Contents/Resources/LICENSE.txt"
 cp "$TASK_ROOT/LICENSE" "$TASK_ROOT/README.md" "$TASK_ROOT/README.tr.md" "$TASK_ROOT/NOTICE.md" "$TASK_ROOT/CONTRIBUTING.md" "$APP_BUNDLE/Contents/Resources/"

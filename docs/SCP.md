@@ -32,7 +32,7 @@ Approved replacements use the server's `mv -f` between sibling files. On ordinar
 
 Downloads use a mode-0600 local sibling temporary file, exact-size SCP records, a post-transfer stat check, then macOS atomic no-clobber rename or approved replacement. Only basic mode and mtime are preserved; ownership, ACLs, extended attributes, and sparse-file layout are not.
 
-Reads and writes check cancellation with nonblocking pipes and a 45-second inactivity deadline. Cancelled/failed transfers close their channel and attempt temporary cleanup through the still-authenticated master. Network failure may leave a recognizable `.winscp-UUID.filepart` directory on the server. Resume, retry, parallel transfers, bandwidth limits, checksums, and multifactor authentication remain future work.
+Reads and writes check cancellation with nonblocking pipes and a 45-second inactivity deadline. Cancelled/failed transfers close their channel and attempt temporary cleanup through the still-authenticated master. Network failure may leave a recognizable `.syncscp-UUID.filepart` directory on the server. Resume, retry, parallel transfers, bandwidth limits, checksums, and multifactor authentication remain future work.
 
 ## Verification
 
