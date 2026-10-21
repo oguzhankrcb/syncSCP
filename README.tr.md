@@ -4,6 +4,22 @@ WinSCP'nin çift panelli Commander iş akışını macOS'a taşımayı hedefleye
 
 **0.12.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
 
+<p align="center">
+  <img src="docs/screenshots/commander.png" alt="WinSCP for macOS Commander penceresi" width="100%"/>
+</p>
+
+| Login | Advanced Site Settings |
+| :---: | :---: |
+| ![Klasörlü site listesiyle Login](docs/screenshots/login.png) | ![SCP/Shell sayfası, sudo su -](docs/screenshots/advanced-settings.png) |
+| _Klasörlü siteler, protokol ve şifreleme seçimi_ | _WinSCP'nin tüm ayar sayfaları_ |
+
+| WinSCP'den içe aktarma | Harici editörler (koyu tema) |
+| :---: | :---: |
+| ![WinSCP'den içe aktarma önizlemesi](docs/screenshots/import.png) | ![Harici editörde düzenlenen dosyalar](docs/screenshots/editing.png) |
+| _Siteler, ayarlar, PuTTY anahtarları ve host key'ler_ | _Kaydedince sunucuya yüklenir_ |
+
+Ekran görüntüleri örnek veriler içerir.
+
 ```sh
 ./scripts/swift.sh test
 ./scripts/build-app.sh

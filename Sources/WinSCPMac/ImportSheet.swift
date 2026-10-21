@@ -15,6 +15,8 @@ struct ImportSheet: View {
     @State private var found: [URL]?
     @State private var summary: WinSCPImportSummary?
     @State private var error: String?
+    /// Opens straight into the preview of this configuration file.
+    var preload: URL?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -22,7 +24,8 @@ struct ImportSheet: View {
                 Image(systemName: "square.and.arrow.down.on.square").font(.system(size: 22)).foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Import from WinSCP").font(.system(size: 17, weight: .semibold))
-                    Text(source?.path ?? "Sites with all their settings, and trusted host keys").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text(source?.lastPathComponent ?? "Sites with all their settings, and trusted host keys").font(.system(size: 11)).foregroundStyle(.secondary)
+                        .help(source?.path ?? "")
                         .lineLimit(1).truncationMode(.middle)
                 }
             }.padding(18)
@@ -49,6 +52,7 @@ struct ImportSheet: View {
             }.padding(14)
         }
         .frame(width: 820, height: 600)
+        .onAppear { if let preload, result == nil { load(preload) } }
     }
 
     private var start: some View {

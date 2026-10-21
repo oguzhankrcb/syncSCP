@@ -4,6 +4,25 @@ A native macOS implementation of WinSCP's Commander workflow, built with SwiftUI
 
 **Status: 0.12.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
 
+<p align="center">
+  <img src="docs/screenshots/commander.png" alt="WinSCP for macOS: Commander window with local and remote panes, an SCP session through sudo su -, and the transfer queue" width="100%"/>
+</p>
+<p align="center"><em>WinSCP's two-pane Commander, native on macOS: here an SCP session running through <code>sudo su -</code>, with a transfer in the queue.</em></p>
+
+## Screenshots
+
+| Login | Advanced Site Settings |
+| :---: | :---: |
+| ![Login with sites grouped in folders](docs/screenshots/login.png) | ![Advanced Site Settings, SCP/Shell page with sudo su -](docs/screenshots/advanced-settings.png) |
+| _Sites in folders, protocol and encryption, explicit Save_ | _Every WinSCP page; unsupported options say why_ |
+
+| Import from WinSCP | External editors (dark mode) |
+| :---: | :---: |
+| ![Import from WinSCP preview with sites, warnings and host keys](docs/screenshots/import.png) | ![Edited files uploaded on save from Visual Studio Code and BBEdit](docs/screenshots/editing.png) |
+| _Sites, settings, PuTTY keys and trusted host keys from WinSCP.ini, reg export or Wine_ | _Edit With any app; saves upload only if the server copy is unchanged_ |
+
+Screenshots use sample data.
+
 ## Build and run
 
 Requires macOS 13 or later and an Xcode toolchain with Swift 5.9 or later. No Homebrew libraries, package downloads, Wine, Electron, or external servers are needed to build.
