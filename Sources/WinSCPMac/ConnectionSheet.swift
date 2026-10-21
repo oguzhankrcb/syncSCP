@@ -11,7 +11,7 @@ struct ConnectionSheet: View {
     @State private var sessionToken = ""
     @State private var selectedSite: UUID?
     @State private var saveSite = true
-    @State private var showAdvanced = false
+    @State private var showAdvancedSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,7 +29,10 @@ struct ConnectionSheet: View {
                     Text("SITES").font(.system(size: 9, weight: .semibold)).tracking(1).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.top, 16)
                     List(selection: $selectedSite) {
                         Label("New Site", systemImage: "plus.circle").tag(Optional<UUID>.none)
-                        ForEach(model.sites) { saved in Label(saved.displayName, systemImage: "server.rack").tag(Optional(saved.id)) }
+                        ForEach(model.sites) { saved in
+                            Label { Text(saved.displayName) } icon: { Image(systemName: "server.rack").foregroundStyle(SiteColor.color(saved.settings.color) ?? .secondary) }
+                                .help(saved.settings.note).tag(Optional(saved.id))
+                        }
                     }.listStyle(.sidebar)
                     if let id = selectedSite {
                         Button("Remove saved site") { model.deleteSite(id); selectedSite = nil; site = Site() }
@@ -45,7 +48,6 @@ struct ConnectionSheet: View {
                             if value.usesS3, !site.transferProtocol.usesS3, site.host.isEmpty { site.host = "s3.amazonaws.com" }
                             if value.usesS3, !site.transferProtocol.usesS3, site.username == NSUserName() { site.username = "" }
                             site.transferProtocol = value
-                            if value.usesWebDAV || value.usesS3 { showAdvanced = true }
                         })) {
                             ForEach(TransferProtocol.allCases, id: \.self) { Text($0.title).tag($0) }
                         }.labelsHidden().accessibilityLabel("File protocol")
@@ -59,31 +61,11 @@ struct ConnectionSheet: View {
                     }
                     Text(site.transferProtocol.usesSSH ? "Leave the password blank to use your SSH agent or default SSH keys. Passwords are removed from Keychain after login." : s3 ? "The secret key and session token stay in memory for this connection and are never written to saved site settings." : "The password stays in memory for this connection and is never written to saved site settings.")
                         .font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    DisclosureGroup("Advanced settings", isExpanded: $showAdvanced) {
-                        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
-                            if site.transferProtocol.usesSSH { GridRow {
-                                Text("Private key").frame(width: 87, alignment: .leading)
-                                HStack { TextField("~/.ssh/id_ed25519", text: $site.privateKey); Button("Choose…") { chooseKey() } }
-                            } }
-                            if !site.transferProtocol.usesSSH && site.transferProtocol.isEncrypted {
-                                GridRow {
-                                    Text("CA certificate").frame(width: 87, alignment: .leading)
-                                    HStack { TextField("System trust (default)", text: $site.certificateAuthorityFile); Button("Choose…") { chooseCA() } }
-                                }
-                            }
-                            if s3 {
-                                GridRow { Text("Region"); TextField("us-east-1", text: $site.s3Region).accessibilityLabel("Region") }
-                                GridRow { Text("URL style"); Toggle("Path-style (bucket in the URL path)", isOn: $site.s3PathStyle) }
-                            }
-                            GridRow { Text(site.transferProtocol.usesWebDAV ? "WebDAV path" : s3 ? "Bucket / folder" : "Remote folder"); TextField(site.transferProtocol.usesWebDAV ? "/dav/" : s3 ? "/ (all buckets) or /my-bucket" : ".", text: $site.remotePath).accessibilityLabel("Remote folder") }
-                            GridRow { Text("Local folder"); TextField("~", text: $site.localPath) }
-                        }.padding(.top, 10)
-                        if site.transferProtocol.usesWebDAV {
-                            Text("Enter the server endpoint path, such as /dav/. Use HTTPS to protect your password and files.").font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                        }
-                        if s3 {
-                            Text("Use the regional endpoint and region of your bucket. Listing all buckets needs extra permission; otherwise enter /bucket-name. IP addresses, localhost and dotted bucket names over HTTPS always use path-style URLs.").font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                        }
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(advancedSummary).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        Button("Advanced…") { showAdvancedSettings = true }.accessibilityHint("Open Advanced Site Settings")
                     }
                     Divider()
                     Toggle("Save site settings", isOn: $saveSite)
@@ -118,24 +100,26 @@ struct ConnectionSheet: View {
             site = model.sites.first(where: { $0.id == id }) ?? Site(); password = ""; sessionToken = ""; model.error = nil
         }
         .onAppear {
-            if let requested = model.requestedSite { site = requested; selectedSite = requested.id; showAdvanced = requested.transferProtocol.usesWebDAV || requested.transferProtocol.usesS3 || !requested.privateKey.isEmpty || !requested.certificateAuthorityFile.isEmpty }
+            if let requested = model.requestedSite { site = requested; selectedSite = requested.id }
         }
         .onDisappear { model.requestedSite = nil }
         .interactiveDismissDisabled(model.connecting)
+        .sheet(isPresented: $showAdvancedSettings) { AdvancedSiteSettingsView(site: $site) }
     }
 
     private var s3: Bool { site.transferProtocol.usesS3 }
-
-    private func chooseKey() {
-        let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.canChooseFiles = true; panel.showsHiddenFiles = true
-        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
-        panel.message = "Choose an OpenSSH private key. PuTTY .ppk keys must be converted first."
-        if panel.runModal() == .OK, let url = panel.url { site.privateKey = url.path }
-    }
-    private func chooseCA() {
-        let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.canChooseFiles = true
-        panel.message = "Choose a PEM certificate authority bundle for this TLS site. Certificate and hostname verification remain required."
-        if panel.runModal() == .OK, let url = panel.url { site.certificateAuthorityFile = url.path }
+    /// One line of the settings that most change how this site connects.
+    private var advancedSummary: String {
+        let settings = site.settings
+        var parts = ["Remote: \(site.remotePath.isEmpty ? (s3 ? "/" : ".") : site.remotePath)"]
+        if site.transferProtocol.usesSSH, !site.privateKey.isEmpty { parts.append("Key: \((site.privateKey as NSString).lastPathComponent)") }
+        if site.transferProtocol == .scp, !settings.shell.isEmpty { parts.append("Shell: \(settings.shell)") }
+        if site.transferProtocol == .sftp, !settings.sftpServer.isEmpty { parts.append("SFTP server: \(settings.sftpServer)") }
+        if settings.tunnel { parts.append("Tunnel: \(settings.tunnelHost)") }
+        if settings.proxyMethod != .none { parts.append("Proxy: \(settings.proxyMethod.rawValue.uppercased())") }
+        if s3 { parts.append("Region: \(site.s3Region.isEmpty ? "us-east-1" : site.s3Region)") }
+        if !site.certificateAuthorityFile.isEmpty { parts.append("Custom CA") }
+        return parts.joined(separator: " · ")
     }
 }
 

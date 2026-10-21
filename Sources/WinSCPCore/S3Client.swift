@@ -54,6 +54,7 @@ public actor S3Client: RemoteFileClient {
         headers["x-amz-date"] = S3Signer.timestamps(Date()).amzDate
         headers["x-amz-content-sha256"] = hash
         if !credentials.sessionToken.isEmpty { headers["x-amz-security-token"] = credentials.sessionToken }
+        if site.settings.s3RequesterPays { headers["x-amz-request-payer"] = "requester" }
         let region = site.s3Region.isEmpty ? "us-east-1" : site.s3Region
         let authorization = S3Signer.authorization(method: method, encodedPath: target.path, canonicalQuery: query, headers: headers,
                                                    payloadHash: hash, credentials: credentials, region: region)

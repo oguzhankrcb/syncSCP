@@ -1,5 +1,33 @@
 # Verification record
 
+## 0.6.0 — Advanced Site Settings
+
+Verified locally on 2026-10-21 with Swift 6.2, OpenSSH 10.2p1, system libcurl and the existing SSH, FTP, WebDAV and MinIO fixtures. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **98 XCTest cases, zero failures, zero skips**, with no compiler warnings.
+
+The 5 new unit tests cover:
+
+- Default options that keep the previous behavior and OpenSSH's own algorithm defaults.
+- Mapping of edited timeouts, keepalives, address family, compression, cipher/kex policies (groups below the warning line are excluded), rekey limits, agent/keyboard-interactive/agent-forwarding/GSSAPI and certificate options.
+- The custom SFTP server command.
+- `nc` proxies for SOCKS4/5 and HTTP, local proxy token mapping, and the localhost bypass. Telnet, authenticated-proxy and dummy-keepalive values are refused.
+- Nested tunnel quoting, including `%` escaping and a proxy inside the tunnel.
+- Validation and data-size parsing, and lenient decoding of missing, unknown and future values.
+
+The 6 new integration tests show:
+
+- Every SCP operation runs inside a configured shell that prints a login banner and then reads commands like `sudo su -`. This includes both connection probes, upload, download, mkdir, rename, list and recursive delete.
+- A shell that cannot start fails at login with a NOPASSWD hint.
+- On the SCP-only daemon, the default SFTP subsystem fails and a configured SFTP server command works.
+- SCP works through a real SSH tunnel, the SFTP daemon acting as bastion with both keys pinned; an unknown bastion is refused.
+- SFTP works through a local proxy command (`/usr/bin/nc %host %port`).
+- Host-key discovery through the tunnel records exactly the target's key.
+- libcurl honors IPv6-only versus IPv4.
+- WebDAV works through a real SOCKS5 proxy (`ssh -D`), fails once that proxy is stopped, and bypasses it for localhost when local proxying is off.
+
+The existing site-store test caught a new setting name containing "password" in `sites.json`; the field was renamed rather than relaxing the test.
+
+The dialog was rendered offscreen for SCP/Shell, SSH, SFTP, Tunnel, S3 and Proxy pages and inspected. The universal 0.6.0 app (arm64 and x86_64) was packaged, passed strict ad-hoc codesign verification, and launched and quit normally. **The Login → Advanced… flow and a real `sudo` account were not exercised interactively in the running app.** Proxy authentication, Telnet proxies, tunnels for FTP/WebDAV/S3, and the options badged Planned are not applied. See [SETTINGS.md](SETTINGS.md).
+
 ## 0.5.0 — S3 over HTTP/HTTPS
 
 Verified locally on 2026-10-21 with Swift 6.2, macOS's system libcurl and CryptoKit. The independent fixture is MinIO `DEVELOPMENT.2025-07-23T15-54-02Z` from the digest-pinned `bitnamilegacy/minio:2025.7.23` image under Docker 27.3.1. Official community MinIO images are no longer published. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **87 XCTest cases, zero failures, zero skips** on the final source, with no compiler warnings. Both runs removed their containers.

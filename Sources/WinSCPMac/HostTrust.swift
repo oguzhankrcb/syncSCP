@@ -19,22 +19,43 @@ enum HostTrust {
         return result.status == 0 && !result.output.isEmpty
     }
 
-    static func scan(_ site: Site) async throws -> HostIdentity {
+    static func scan(_ site: Site, knownHostsFile: URL) async throws -> HostIdentity {
         try site.validate()
+        guard !site.settings.tunnel, !SSHOptions.usesProxy(site.settings, host: site.host) else {
+            return try await scanThroughSSH(site, knownHostsFile: knownHostsFile)
+        }
         let result = try await run("/usr/bin/ssh-keyscan", ["-T", "5", "-p", String(site.port), "-t", "ed25519,ecdsa,rsa", site.host])
         let lines = result.output.split(separator: "\n").filter { !$0.hasPrefix("#") }
+        guard let identity = identities(lines, site: site).first(where: { $0.algorithm == "ssh-ed25519" }) ?? identities(lines, site: site).first else {
+            throw ClientError.connection("Could not read the SSH host key. \(result.error)")
+        }
+        return identity
+    }
+
+    /// Through a proxy or tunnel, OpenSSH itself records the presented key in a temporary file.
+    private static func scanThroughSSH(_ site: Site, knownHostsFile: URL) async throws -> HostIdentity {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("winscp-hostkey-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("known_hosts")
+        let configuration = SSHConfiguration(site: site, knownHostsFile: knownHostsFile.path)
+        let result = try await run("/usr/bin/ssh", configuration.hostKeyDiscoveryArguments(temporaryKnownHosts: file.path))
+        let lines = ((try? String(contentsOf: file)) ?? "").split(separator: "\n").filter { !$0.hasPrefix("#") }
+        guard let identity = identities(lines, site: site).first else {
+            throw ClientError.connection("Could not read the SSH host key through the proxy or tunnel. \(result.error)")
+        }
+        return identity
+    }
+
+    private static func identities(_ lines: [Substring], site: Site) -> [HostIdentity] {
         let supported = ["ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521", "ssh-rsa"]
-        let keys = lines.compactMap { line -> HostIdentity? in
+        return lines.compactMap { line -> HostIdentity? in
             let fields = line.split(separator: " ")
             guard fields.count == 3, supported.contains(String(fields[1])), let bytes = Data(base64Encoded: String(fields[2])) else { return nil }
             let fingerprint = "SHA256:" + Data(SHA256.hash(data: bytes)).base64EncodedString().replacingOccurrences(of: "=", with: "")
             return HostIdentity(host: lookupKey(site), algorithm: String(fields[1]), fingerprint: fingerprint,
                                 knownHostsLine: "\(lookupKey(site)) \(fields[1]) \(fields[2])\n")
         }
-        guard let identity = keys.first(where: { $0.algorithm == "ssh-ed25519" }) ?? keys.first else {
-            throw ClientError.connection("Could not read the SSH host key. \(result.error)")
-        }
-        return identity
     }
 
     static func trust(_ identity: HostIdentity, file: URL) throws {

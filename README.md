@@ -2,7 +2,7 @@
 
 A native macOS implementation of WinSCP's Commander workflow, built with SwiftUI, AppKit, and macOS's OpenSSH and libcurl. Free software under **GPL-3.0-or-later**.
 
-**Status: 0.5.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
+**Status: 0.6.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
 
 ## Build and run
 
@@ -34,6 +34,7 @@ For a development build, use `./scripts/build-app.sh --debug`. For an Apple Sili
 - Remote mkdir, rename, recursive delete, POSIX permission editing; local folder creation, rename, and Trash integration.
 - UTF-8 remote text editor (4 MB maximum) with save-back and size/mtime conflict checks.
 - Reviewed, one-way local → remote synchronization by size/mtime. No remote deletions; symlinks are skipped; type conflicts block execution.
+- WinSCP's Advanced Site Settings, page for page: SCP/Shell (for example `sudo su -`), SFTP server command, timeouts, keepalives, IPv4/IPv6, SOCKS/HTTP/local proxies, SSH tunnels, TLS versions, cipher and key-exchange policies, rekey limits, authentication options, S3 options, notes and site colors. PuTTY-only and not-yet-applied options are shown disabled with a reason. See [Advanced Site Settings](docs/SETTINGS.md).
 - Saved site settings and bounded session logs.
 
 SFTP uses binary protocol messages rather than shell commands or parsing `ls`. Spaces, quotes, Unicode, and newline characters in SFTP filenames are preserved. Invalid UTF-8 names are reported, not silently changed. SFTP and local filesystem operations reject symlink transfers. FTP paths reject control characters, and FTP relies on the file types reported by its server; recursive deletion requires Unix LIST types so an existing symlink can be removed without traversing it. See [FTP capabilities and limits](docs/FTP.md).
@@ -42,9 +43,9 @@ SFTP uses binary protocol messages rather than shell commands or parsing `ls`. S
 
 Choose **New Session**, select SFTP, SCP, FTP, an FTPS mode, WebDAV or S3 over HTTP/HTTPS, then enter the host, port, and username. Protocol selection updates standard ports (SFTP/SCP 22, FTP/explicit FTPS 21, implicit FTPS 990, HTTP WebDAV/S3 80, HTTPS WebDAV/S3 443). Saved sites open in the login sheet so passwords can be entered again; older site files retain their original settings and default to SFTP.
 
-For SFTP or SCP, compare the first-use host fingerprint with a trusted source before approving it. Key and agent authentication do not require a saved password. For FTPS, the certificate must be valid for the selected host and trusted by the system or the selected PEM CA bundle. Plain FTP displays its unencrypted status. FTP/FTPS passwords stay in memory until disconnect and are never written to site JSON or command-line arguments. Advanced settings select initial directories, an SSH key, or a TLS CA file. For WebDAV, enter the endpoint path in WebDAV path; Basic authentication and ETag-conditional replacement are supported. For S3, enter the access key ID as user name and the secret access key as password, plus an optional session token. Set the endpoint, region and initial `/bucket` path; `/` lists all buckets.
+For SFTP or SCP, compare the first-use host fingerprint with a trusted source before approving it. Key and agent authentication do not require a saved password. For FTPS, the certificate must be valid for the selected host and trusted by the system or the selected PEM CA bundle. Plain FTP displays its unencrypted status. FTP/FTPS passwords stay in memory until disconnect and are never written to site JSON or command-line arguments. **Advanced…** opens the Advanced Site Settings: initial directories, SSH key, TLS CA file, shell, proxy, tunnel and protocol options. For WebDAV, enter the endpoint path in WebDAV path; Basic authentication and ETag-conditional replacement are supported. For S3, enter the access key ID as user name and the secret access key as password, plus an optional session token. Set the endpoint, region and initial `/bucket` path; `/` lists all buckets.
 
-The application keeps its own host-key store and site settings in `~/Library/Application Support/WinSCPMac/`. It deliberately disables SSH config loading (`-F /dev/null`), forwarding, and local commands. ProxyJump, user SSH config aliases, SSH tunnels, PuTTY `.ppk` keys, and imported WinSCP password blobs are not currently supported. A changed trusted host key fails verification; there is no automatic reset or insecure bypass.
+The application keeps its own host-key store and site settings in `~/Library/Application Support/WinSCPMac/`. It deliberately disables SSH config loading (`-F /dev/null`), forwarding, and local commands. User SSH config aliases, PuTTY `.ppk` keys, and imported WinSCP password blobs are not currently supported; use the Proxy and Tunnel pages instead of SSH config. A changed trusted host key fails verification; there is no automatic reset or insecure bypass.
 
 Select local files and choose **Upload** (`⌘⇧U`), or select remote files and choose **Download** (`⌘⇧D`). Double-click folders to browse and remote text files to edit. File operations are also available in the context menu and the macOS menu bar.
 

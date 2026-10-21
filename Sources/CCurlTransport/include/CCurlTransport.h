@@ -5,6 +5,14 @@
 #include <stdint.h>
 
 typedef struct WSCurlSession WSCurlSession;
+/* Advanced Site Settings shared by FTP and HTTP. Zero values keep the previous defaults. */
+typedef struct {
+    const char *proxy;  /* "" for none, else e.g. "socks5h://host:1080" */
+    long timeout;       /* seconds; connect and FTP response timeout */
+    int ip_resolve;     /* 0: any, 4: IPv4, 6: IPv6 */
+    int tls_min;        /* 0: TLS 1.2, else 10/11/12/13 */
+    int tls_max;        /* 0: library default, else 10/11/12/13 */
+} WSNetworkOptions;
 typedef int (*WSProgress)(void *context, int64_t total, int64_t completed);
 typedef struct {
     const char *url;
@@ -18,6 +26,7 @@ typedef struct {
     int operation; /* 0: listing, 1: download, 2: upload, 3: commands */
     int file_descriptor;
     int64_t upload_size;
+    WSNetworkOptions network;
 } WSCurlRequest;
 typedef struct {
     int code;
@@ -50,6 +59,7 @@ typedef struct {
     int basic_auth;
     int ranged_upload;
     int64_t upload_offset;
+    WSNetworkOptions network;
 } WSHTTPRequest;
 typedef struct {
     WSCurlResult response;

@@ -1,6 +1,6 @@
 # WinSCP macOS — oturum devir notu
 
-Son güncelleme: 21 Ekim 2026 (0.5.0 / S3). Bu belge, geliştirmeyi yeni bir oturumda mevcut dosyalardan sürdürmek için hazırlanmıştır.
+Son güncelleme: 21 Ekim 2026 (0.6.0 / Advanced Site Settings). Bu belge, geliştirmeyi yeni bir oturumda mevcut dosyalardan sürdürmek için hazırlanmıştır.
 
 ## Amaç ve mevcut yaklaşım
 
@@ -10,11 +10,11 @@ Kullanıcının hedefi WinSCP'nin macOS üzerinde mümkün olduğunca bire bir �
 /Users/oguzhankaracabay/Desktop/projects/WinSCP-Mac-Port
 ```
 
-Mevcut uygulama **0.5.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
+Mevcut uygulama **0.6.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
 
 Swift Package Manager kullanılıyor; hedef macOS 13+, paket araç sürümü 5.9. Son doğrulamalar Apple Silicon üzerinde Swift 6.2 ile yapıldı. Uygulama macOS'un OpenSSH, libcurl ve CryptoKit bileşenlerini kullanıyor; indirilmiş Swift paket bağımlılığı, AWS SDK, Electron, Wine veya Python çalışma zamanı bağımlılığı yok. Python ve Docker yalnızca bağımsız test sunucuları için kullanılıyor.
 
-**Git durumu:** `origin` = kullanıcının **private** GitHub reposu `https://github.com/oguzhankrcb/WinSCP-Mac-Port` (21 Ekim 2026'da oluşturuldu). `main` dalında ilk commit (`c7b6c76`, 0.4.0 içeri aktarımı) push edildi. 0.5.0 S3 çalışması ayrı bir commit'tir; push durumunu `git status` ile kontrol et. Repo private kalmalı; public yapmak, release veya PR açmak ayrıca yetki ister. `dist/`, `.build/` ve `upstream/winscp/` git dışında tutuluyor. Yine de `git clean`, reset gibi dosya kaybettirecek işlemler yapma.
+**Git durumu:** `origin` = kullanıcının **private** GitHub reposu `https://github.com/oguzhankrcb/WinSCP-Mac-Port` (21 Ekim 2026'da oluşturuldu). `main` dalında ilk commit (`c7b6c76`, 0.4.0 içeri aktarımı) push edildi. 0.5.0 S3 ve 0.6.0 ayar çalışmaları ayrı commit'lerdir; push durumunu `git status -sb` ile kontrol et. Proje kökündeki `WinSCP for macOS — UI mockup.html` kullanıcının dışa aktardığı mockup kopyasıdır; untracked bırakıldı, commit'lenmedi. Repo private kalmalı; public yapmak, release veya PR açmak ayrıca yetki ister. `dist/`, `.build/` ve `upstream/winscp/` git dışında tutuluyor. Yine de `git clean`, reset gibi dosya kaybettirecek işlemler yapma.
 
 ## Çalışan özellikler
 
@@ -26,6 +26,15 @@ Swift Package Manager kullanılıyor; hedef macOS 13+, paket araç sürümü 5.9
 - En fazla 4 MB UTF-8 uzak dosya editörü; açılan sürüme karşı kontrol ederek sunucuya kaydetme.
 - Önizlemeli, **tek yönlü yerelden uzağa** eşitleme. Kaynak/hedef sürümleri yeniden kontrol edilir; uzaktaki fazladan dosyalar silinmez, symlink'ler atlanır, tür çakışmaları engellenir.
 - Sınırlı oturum günlüğü, sunucu anahtarı doğrulaması ve TLS sertifika/hostname doğrulaması.
+- WinSCP Advanced Site Settings penceresi sayfa sayfa var (Login → **Advanced…**). Uygulanan ayarlar:
+  - SCP shell (`sudo su -`) ve SFTP server komutu
+  - timeout, keepalive ve IPv4/IPv6 seçimi
+  - SOCKS4/5, HTTP ve yerel komut proxy'si; SFTP/SCP için SSH tunnel
+  - TLS min/max sürümü
+  - cipher/kex sıralaması ve rekey
+  - kimlik doğrulama seçenekleri, S3 requester pays, not ve renk
+
+  Diğerleri "Planned", "Not available with OpenSSH" vb. etiketlerle disabled. Ayrıntı: `docs/SETTINGS.md`. Kullanıcı kararı (hafızada da var): PuTTY'ye özgü ayarlar gizlenmez, gri gösterilir; hiçbir kontrol sessizce etkisiz olamaz.
 
 ### Protokoller
 
@@ -49,6 +58,8 @@ Aşağıdaki yolların tamamı proje dizinine göredir:
 - `Sources/WinSCPCore/Models.swift`: protokol/site/dosya modelleri, yerel dosya bilgisi, hata ve iptal yapıları.
 - `Sources/WinSCPCore/RemoteSession.swift`: protokolden bağımsız `RemoteFileClient` arayüzü ve backend seçimi. Yeni protokoller bu katmana bağlanmalı.
 - `Sources/WinSCPCore/Synchronization.swift`, `SiteStore.swift`: eşitleme planı ve kayıtlı bağlantılar.
+- `Sources/WinSCPCore/SiteSettings.swift`: tüm Advanced Site Settings alanları, lenient decoding ve doğrulama. `SSHTransport.swift` içindeki `SSHOptions` bunları OpenSSH seçeneklerine, `CurlFTPTransport.swift` içindeki `CurlNetwork` ise libcurl'e çevirir.
+- `Sources/WinSCPMac/AdvancedSiteSettings.swift`: protokole göre ağaçlı ayar penceresi, durum etiketleri, cipher/kex sıralama listesi ve site rengi.
 - `SFTPClient.swift`, `SFTPPacket.swift`, `SSHTransport.swift`: SFTP ve OpenSSH taşıması.
 - `SCPClient.swift`, `SSHCommandChannel.swift`: legacy SCP, uzak komut kanalları ve ortak SSH master bağlantısı.
 - `FTPClient.swift`, `FTPListing.swift`, `CurlFTPTransport.swift`: FTP/FTPS.
@@ -56,7 +67,7 @@ Aşağıdaki yolların tamamı proje dizinine göredir:
 - `S3Client.swift`, `S3Listing.swift`, `S3Signer.swift`: S3 actor'ı, yol/URL eşlemesi, liste/hata XML'i, SigV4 ve SHA-256.
 - `Sources/CCurlTransport/`: macOS libcurl için özgün C köprüsü; FTP ve HTTP girişleri ayrı. HTTP girişinde `basic_auth`, `pread` ile aralıklı upload (`ranged_upload`/`upload_offset`), HEAD için NOBODY ve `PATH_AS_IS` var.
 - `Sources/WinSCPMac/CommanderModel.swift`: MainActor uygulama durumu, kuyruk, editör, klasör aktarımları ve eşitleme.
-- `CommanderView.swift`, `ConnectionSheet.swift`, `HostTrust.swift`, `WinSCPMacApp.swift`: arayüz, bağlantı, güven, menüler ve askpass.
+- `CommanderView.swift`, `ConnectionSheet.swift`, `HostTrust.swift`, `WinSCPMacApp.swift`: arayüz, bağlantı, güven, menüler ve askpass. Proxy/tunnel varken `HostTrust` sunucu anahtarını OpenSSH `accept-new` ile geçici bir dosyaya yakalar; tunnel host'un anahtarı önce onaylatılır.
 - `Tests/WinSCPCoreTests/`: birim ve gerçek sunucu entegrasyon testleri.
 - `scripts/`: Swift wrapper, uygulama/paket üretimi ve geçici test sunucuları.
 
@@ -64,28 +75,28 @@ Aşağıdaki yolların tamamı proje dizinine göredir:
 
 ## Son doğrulama ve mevcut çıktılar
 
-0.5.0'ın son kaynakları üzerinde hem debug hem release testleri tamamlandı:
+0.6.0'ın son kaynakları üzerinde hem debug hem release testleri tamamlandı:
 
 ```text
-./scripts/test-ssh.sh --all             → 87 XCTest, 0 failure, 0 skip
-./scripts/test-ssh.sh --all -c release  → 87 XCTest, 0 failure, 0 skip
+./scripts/test-ssh.sh --all             → 98 XCTest, 0 failure, 0 skip
+./scripts/test-ssh.sh --all -c release  → 98 XCTest, 0 failure, 0 skip
 ```
 
 Son çalıştırmalarda compiler warning yok. Testler gerçek OpenSSH/SFTP, SFTP subsystem'i kapalı ayrı SCP sunucusu, pyftpdlib 2.2.0 FTP/FTPS, WsgiDAV 4.3.5 / Cheroot 11.1.2 HTTP/HTTPS ve Docker'da iki MinIO (HTTP + HTTPS) sunucusunu kullanıyor. MinIO imajı digest ile sabitlenmiş `bitnamilegacy/minio:2025.7.23`; resmî topluluk MinIO imajları artık yayımlanmıyor. Geçici anahtarlar, CA ve dosyalar üretildi; kullanıcının üretim sunucusu/kimlik bilgileri kullanılmadı.
 
-0.5.0'da S3 giriş ekranı ve aktarımları **native arayüzde denenmedi**; yalnızca paketlenen uygulamanın açılıp kapandığı kontrol edildi. Önceki sürümlerde native uygulama arayüzünde bağlantı/güven akışı, SCP ve WebDAV dosya/klasör aktarımı, editör kaydı ve önizlemeli eşitleme kontrol edildi; yerel ve sunucu dosya içerikleri karşılaştırıldı. WebDAV için hatalı sertifikanın reddi ve özel CA ile başarılı HTTPS bağlantısı da denendi. Manuel test sunucuları durduruldu; uygulama son paketleme öncesinde kapatıldı.
+0.5.0'daki S3 akışı ve 0.6.0'daki Login → Advanced… akışı **çalışan uygulamada etkileşimli olarak denenmedi**. Ayar penceresi offscreen render edilip incelendi; paketlenen uygulamanın açılıp kapandığı kontrol edildi. Gerçek bir `sudo` hesabıyla test yapılmadı; testler `sudo su -` gibi davranan bir sahte shell kullanıyor. Önceki sürümlerde native uygulama arayüzünde bağlantı/güven akışı, SCP ve WebDAV dosya/klasör aktarımı, editör kaydı ve önizlemeli eşitleme kontrol edildi; yerel ve sunucu dosya içerikleri karşılaştırıldı. WebDAV için hatalı sertifikanın reddi ve özel CA ile başarılı HTTPS bağlantısı da denendi. Manuel test sunucuları durduruldu; uygulama son paketleme öncesinde kapatıldı.
 
 Mevcut çıktılar:
 
 ```text
 dist/WinSCP for macOS.app
-dist/WinSCPMac-0.5.0-universal.zip
-dist/WinSCPMac-0.5.0-source.zip
+dist/WinSCPMac-0.6.0-universal.zip
+dist/WinSCPMac-0.6.0-source.zip   (untracked mockup HTML'i de içeriyor; script untracked dosyaları da paketler)
 ```
 
-Universal sürüm arm64 ve x86_64 içeriyor, ad-hoc imzalı ve strict codesign kontrolünden geçti. **Fiziksel Intel testi, eski macOS testi, Developer ID imzası ve notarization yapılmadı.** GitHub Actions workflow'u repo push edildiği için GitHub'da tetiklenebilir; sonucunu doğrulamadan başarılı olduğu iddia edilmemeli. Hosted macOS runner'larda Docker olmadığından CI `WINSCP_SKIP_S3=1` kullanır; S3 testleri orada skip olur. Önceki 0.1–0.4 ZIP'leri de duruyor; güncel paket 0.5.0.
+Universal sürüm arm64 ve x86_64 içeriyor, ad-hoc imzalı ve strict codesign kontrolünden geçti. **Fiziksel Intel testi, eski macOS testi, Developer ID imzası ve notarization yapılmadı.** GitHub Actions workflow'u repo push edildiği için GitHub'da tetiklenebilir; sonucunu doğrulamadan başarılı olduğu iddia edilmemeli. Hosted macOS runner'larda Docker olmadığından CI `WINSCP_SKIP_S3=1` kullanır; S3 testleri orada skip olur. Önceki 0.1–0.4 ZIP'leri de duruyor; güncel paket 0.6.0.
 
-Son kayıtlar `.build/s3-verification-tests.log`, `.build/s3-verification-release-tests.log`, `.build/s3-verification-package.log` içinde.
+Son kayıtlar `.build/settings-verification-tests.log`, `.build/settings-verification-release-tests.log`, `.build/settings-verification-package.log` içinde.
 
 ## Çalıştırma ve geliştirme komutları
 
@@ -128,8 +139,13 @@ Yerel tool sandbox'ında port açma, bağımlılık indirme veya `iconutil` izin
 10. **S3 koşullu yazmaları koru.** Tek PUT'ta `If-None-Match: *` / `If-Match`, multipart'ta aynı koşul `CompleteMultipartUpload` üzerinde. MinIO CopyObject ve DELETE'teki koşulları yok sayıyor; bu yüzden rename multipart copy + koşullu complete kullanır. Kaynak silme koşulsuzdur ve bu belgelenmiştir. Başarısız multipart upload her zaman abort edilmeli.
 11. **İmzalı payload hash'i (SHA-256) bütünlük güvencesidir.** `UNSIGNED-PAYLOAD`'a geçmek, aktarım sırasında değişen yerel dosyanın sunucuda kabul edilmesine yol açar. İndirilen dosyanın checksum'ı yazma-only handle'dan okunamaz; ayrı bir okuma handle'ı açılır.
 12. MinIO PUT boyunca nesneyi kilitler. Yarış testleri değişikliği akışın ortasında değil, istemci kontrolünden sonra (ilk progress çağrısında) enjekte eder; aksi hâlde 30 saniyelik kilit zaman aşımına düşer.
+13. **SCP shell sırası önemli.** Marker satırı okunmadan SCP verisi (özellikle `scp -f` için ilk `\0`) gönderilmemeli; blok halinde okuyan shell'ler sonradan gelen baytları yutar. Connection probe da shell üzerinden geçer.
+14. **SSH seçeneklerinde ilk değer kazanır.** SCP kanallarının `ProxyCommand=/usr/bin/false` ve `BatchMode=yes` seçenekleri site ayarlarından önce gelmeli; aksi halde proxy/tunnel ayarı fail-closed davranışını bozar. Tunnel için `ProxyJump` kullanma; jump host komut satırındaki doğrulama seçeneklerini yok sayar.
+15. Varsayılan cipher/kex sırası OpenSSH'ın kendi varsayılanlarını korur; yalnızca kullanıcı sırayı değiştirirse `Ciphers`/`KexAlgorithms` gönderilir.
 
 ## Kalan işler ve önerilen ilerleme sırası
+
+**Sıradaki iş (kullanıcının onayladığı plan): 0.7.0, ana pencerenin onaylanan mockup'a göre yeniden tasarımı.** Mockup: https://claude.ai/artifact/RcPqadNgvmoPmpCzifPjEc. Bu sürüm oturum sekmeleri, panel başına gezinme ve işlem çubukları, aktif panel yol şeridi, Rights/Owner sütunları, kuyruk paneli ve durum çubuğunu içeriyor. Login ekranı da mockup'taki gibi gruplu site ağacına geçmeli. Advanced Site Settings'te "Planned" kalan ayarlar (`docs/SETTINGS.md`) sonraki sürümlerde backend'e bağlanmalı.
 
 S3 0.5.0'da temel düzeyde tamamlandı. S3 için kalanlar: native arayüzde S3 akışının elle denenmesi; AWS ve diğer sağlayıcılarla (R2, B2, Wasabi, Ceph) doğrulama; otomatik region keşfi; klasör rename; versioning, ACL/tag ve storage class; SSE-C; bucket yönetimi; multipart resume. Protokol eşitliğinde S3 sonrası net bir "sıradaki protokol" kalmadı. Bundan sonra öncelik günlük kullanım (drag/drop, sekmeler), aktarım dayanıklılığı (resume/retry) veya kimlik doğrulama (SSH config/jump host, keyboard-interactive) olabilir. Bu bir öneridir, kullanıcı seçimi değildir.
 

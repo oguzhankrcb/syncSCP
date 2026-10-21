@@ -48,19 +48,21 @@ public struct Site: Codable, Identifiable, Equatable, Sendable {
     public var s3Region: String
     /// Path-style S3 URLs (`host/bucket/key`) instead of virtual-hosted (`bucket.host/key`).
     public var s3PathStyle: Bool
+    /// WinSCP Advanced Site Settings.
+    public var settings: SiteSettings
 
     public init(id: UUID = UUID(), name: String = "", host: String = "", port: Int? = nil,
                 username: String = NSUserName(), privateKey: String = "", remotePath: String = ".",
                 localPath: String = FileManager.default.homeDirectoryForCurrentUser.path,
                 transferProtocol: TransferProtocol = .sftp, certificateAuthorityFile: String = "",
-                s3Region: String = "", s3PathStyle: Bool = false) {
+                s3Region: String = "", s3PathStyle: Bool = false, settings: SiteSettings = SiteSettings()) {
         self.id = id; self.name = name; self.host = host; self.port = port ?? transferProtocol.defaultPort
         self.username = username; self.privateKey = privateKey; self.remotePath = remotePath; self.localPath = localPath
         self.transferProtocol = transferProtocol; self.certificateAuthorityFile = certificateAuthorityFile
-        self.s3Region = s3Region; self.s3PathStyle = s3PathStyle
+        self.s3Region = s3Region; self.s3PathStyle = s3PathStyle; self.settings = settings
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, host, port, username, privateKey, remotePath, localPath, transferProtocol, certificateAuthorityFile, s3Region, s3PathStyle }
+    private enum CodingKeys: String, CodingKey { case id, name, host, port, username, privateKey, remotePath, localPath, transferProtocol, certificateAuthorityFile, s3Region, s3PathStyle, settings }
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         id = try values.decode(UUID.self, forKey: .id); name = try values.decode(String.self, forKey: .name)
@@ -71,6 +73,7 @@ public struct Site: Codable, Identifiable, Equatable, Sendable {
         certificateAuthorityFile = try values.decodeIfPresent(String.self, forKey: .certificateAuthorityFile) ?? ""
         s3Region = try values.decodeIfPresent(String.self, forKey: .s3Region) ?? ""
         s3PathStyle = try values.decodeIfPresent(Bool.self, forKey: .s3PathStyle) ?? false
+        settings = try values.decodeIfPresent(SiteSettings.self, forKey: .settings) ?? SiteSettings()
     }
 
     public var displayName: String { name.isEmpty ? "\(username)@\(host)" : name }
@@ -81,6 +84,7 @@ public struct Site: Codable, Identifiable, Equatable, Sendable {
               !host.contains("/"), !host.contains("@"), !host.contains("%"), !host.contains("?"), !host.contains("#") else { throw ClientError.invalid("Enter a valid server host name or IP address.") }
         guard (1...65535).contains(port) else { throw ClientError.invalid("Port must be between 1 and 65535.") }
         guard !username.isEmpty, username.rangeOfCharacter(from: .controlCharacters) == nil else { throw ClientError.invalid("Enter a valid username.") }
+        try settings.validate()
         if transferProtocol.usesSSH, !privateKey.isEmpty, !FileManager.default.fileExists(atPath: (privateKey as NSString).expandingTildeInPath) {
             throw ClientError.invalid("The private key file does not exist.")
         }

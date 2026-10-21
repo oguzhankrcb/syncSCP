@@ -53,6 +53,7 @@ struct CommanderView: View {
             if let site = model.currentSite, model.connected {
                 HStack(spacing: 7) {
                     Circle().fill(.green).frame(width: 7, height: 7)
+                    if let color = SiteColor.color(site.settings.color) { RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 4, height: 16).help("Site color") }
                     Image(systemName: site.transferProtocol.isEncrypted ? "lock.shield" : "exclamationmark.triangle").foregroundStyle(.secondary)
                     Text(site.displayName).font(.system(size: 12, weight: .medium))
                     Text(site.transferProtocol.shortTitle).font(.system(size: 9, weight: .semibold)).padding(.horizontal, 5).padding(.vertical, 3)
@@ -204,7 +205,7 @@ struct CommanderView: View {
                 Image(systemName: model.currentSite?.transferProtocol.isEncrypted == true ? "lock.fill" : "exclamationmark.triangle")
                 Text(model.currentSite?.transferProtocol.usesSSH == true ? "SSH encrypted" : model.currentSite?.transferProtocol.isEncrypted != true ? "Unencrypted \(model.currentSite?.transferProtocol.shortTitle ?? "")" : "TLS encrypted")
             }
-            Text("Development preview · 0.5.0").padding(.leading, 14)
+            Text("Development preview · 0.6.0").padding(.leading, 14)
         }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 18).padding(.vertical, 7)
     }
 }

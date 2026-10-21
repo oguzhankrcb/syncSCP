@@ -180,9 +180,8 @@ final class SCPSSHSession {
                 guard Date() < deadline else { throw ClientError.connection("SSH authentication timed out.") }
                 Thread.sleep(forTimeInterval: 0.05)
             }
-            let probe = try channel(command: "exit 0")
-            defer { probe.close() }
-            _ = try probe.finish()
+            // Also proves that a configured shell (e.g. `sudo su -`) starts without prompting.
+            _ = try run("exit 0")
         } catch { close(); throw error }
     }
     var controlPath: String { socket }
@@ -190,10 +189,38 @@ final class SCPSSHSession {
     func close() { master?.close(); master = nil; try? FileManager.default.removeItem(at: directory) }
     func channel(command: String) throws -> SSHCommandChannel {
         guard master?.isRunning == true else { throw ClientError.connection("The SSH session is closed. Connect again.") }
-        return try SSHCommandChannel(arguments: configuration.baseArguments() + ["-S", socket, "-o", "ControlMaster=no", "-o", "BatchMode=yes", "-o", "ProxyCommand=/usr/bin/false", "--", configuration.site.host, command])
+        // OpenSSH keeps the first value of an option, so these must precede the site's own options.
+        return try SSHCommandChannel(arguments: ["-S", socket, "-o", "ControlMaster=no", "-o", "BatchMode=yes", "-o", "ProxyCommand=/usr/bin/false"] + configuration.baseArguments() + ["--", configuration.site.host, command])
+    }
+    /// Starts `script` either directly or, like WinSCP's SCP/Shell setting, inside the configured
+    /// shell: the shell runs as the remote command and receives one line that prints a unique
+    /// marker and then execs the quoted script. Output before the marker (banners, motd) is
+    /// discarded, and the stream is returned only once the shell has consumed that line, so
+    /// later protocol bytes always reach the script rather than the shell.
+    func open(_ script: String, arguments: [String] = [], token: CancellationToken = CancellationToken()) throws -> SSHCommandChannel {
+        let command = try SCPShell.command(script, arguments: arguments)
+        let shell = configuration.site.settings.shell.trimmingCharacters(in: .whitespaces)
+        guard !shell.isEmpty else { return try channel(command: command) }
+        let stream = try channel(command: shell)
+        do {
+            let marker = "WINSCP-READY-" + UUID().uuidString
+            try stream.send(Data("echo \(marker); \(command)\n".utf8), token: token)
+            for _ in 0..<1000 {
+                var line = try stream.line(token: token)
+                if line.last == 13 { line.removeLast() }
+                if line == Data(marker.utf8) { return stream }
+            }
+            throw ClientError.protocolError("The shell printed too much output before starting the command.")
+        } catch ClientError.cancelled {
+            stream.close(); throw ClientError.cancelled
+        } catch {
+            let detail = stream.errorText
+            stream.close()
+            throw ClientError.connection("The SCP shell “\(shell)” did not start the command.\(detail.isEmpty ? "" : " " + detail) A sudo shell must be allowed without a password prompt (NOPASSWD), as in WinSCP.")
+        }
     }
     func run(_ script: String, arguments: [String] = [], token: CancellationToken = CancellationToken()) throws -> Data {
-        let stream = try channel(command: SCPShell.command(script, arguments: arguments))
+        let stream = try open(script, arguments: arguments, token: token)
         defer { stream.close() }
         return try stream.finish(token: token)
     }

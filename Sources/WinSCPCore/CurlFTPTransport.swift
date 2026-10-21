@@ -18,6 +18,34 @@ final class CurlProgress {
     init(token: CancellationToken, update: @escaping @Sendable (UInt64, UInt64) -> Void) { self.token = token; self.update = update }
 }
 
+/// Advanced Site Settings applied to libcurl (FTP/FTPS, WebDAV, S3).
+enum CurlNetwork {
+    static func proxyURL(_ site: Site) throws -> String {
+        let settings = site.settings
+        guard !settings.tunnel else { throw ClientError.unsupported("SSH tunnels are available for SFTP and SCP only in this preview.") }
+        guard SSHOptions.usesProxy(settings, host: site.host) else { return "" }
+        guard settings.proxyUsername.isEmpty else { throw ClientError.unsupported("Authenticated proxies are not supported yet. Leave the proxy user name empty.") }
+        let scheme: String
+        switch settings.proxyMethod {
+        case .socks4: scheme = settings.proxyDNS == .off ? "socks4" : "socks4a"
+        case .socks5: scheme = settings.proxyDNS == .off ? "socks5" : "socks5h"
+        case .http: scheme = "http"
+        case .telnet, .local: throw ClientError.unsupported("\(settings.proxyMethod == .telnet ? "Telnet" : "Local command") proxies are available for SFTP and SCP only.")
+        case .none: return ""
+        }
+        let host = settings.proxyHost.contains(":") ? "[\(settings.proxyHost)]" : settings.proxyHost
+        guard host.rangeOfCharacter(from: CharacterSet(charactersIn: "/@?#%").union(.whitespacesAndNewlines)) == nil else { throw ClientError.invalid("Enter a valid proxy host name.") }
+        return "\(scheme)://\(host):\(settings.proxyPort)"
+    }
+    static func options(_ site: Site, arena: CStringArena) throws -> WSNetworkOptions {
+        let settings = site.settings
+        let tls: (TLSVersion) -> Int32 = { switch $0 { case .tls10: return 10; case .tls11: return 11; case .tls12: return 12; case .tls13: return 13 } }
+        return WSNetworkOptions(proxy: try arena.store(proxyURL(site)), timeout: settings.timeoutSeconds,
+                                ip_resolve: settings.addressFamily == .ipv4 ? 4 : settings.addressFamily == .ipv6 ? 6 : 0,
+                                tls_min: tls(settings.tlsMinimum), tls_max: tls(settings.tlsMaximum))
+    }
+}
+
 /// Called only by the owning FTPClient actor. No command-line process or shell is involved.
 final class CurlFTPTransport {
     private let handle: OpaquePointer
@@ -45,6 +73,7 @@ final class CurlFTPTransport {
         request.method = try arena.store(method)
         request.operation = operation; request.file_descriptor = file; request.upload_size = Int64(size)
         request.tls_mode = site.transferProtocol == .ftp ? 0 : site.transferProtocol == .ftpsExplicit ? 1 : 2
+        request.network = try CurlNetwork.options(site, arena: arena)
         let commandPointers: [UnsafePointer<CChar>?] = try commands.map { try arena.store($0) }
         let context = CurlProgress(token: token, update: progress)
         var result = WSCurlResult()

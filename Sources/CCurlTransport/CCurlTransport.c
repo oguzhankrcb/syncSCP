@@ -26,6 +26,27 @@ void ws_curl_destroy(WSCurlSession *session) {
 }
 void ws_curl_result_free(WSCurlResult *result) { free(result->body); result->body = NULL; result->body_size = 0; }
 
+static long tls_constant(int version, int maximum) {
+    long value = version == 10 ? CURL_SSLVERSION_TLSv1_0 : version == 11 ? CURL_SSLVERSION_TLSv1_1
+               : version == 13 ? CURL_SSLVERSION_TLSv1_3 : CURL_SSLVERSION_TLSv1_2;
+    return maximum ? (version ? value << 16 : CURL_SSLVERSION_MAX_DEFAULT) : value;
+}
+static CURLcode apply_network(CURL *easy, const WSNetworkOptions *network, int tls, int ftp) {
+    CURLcode code;
+    long timeout = network->timeout > 0 ? network->timeout : 15;
+#define TRY(option, value) do { code = curl_easy_setopt(easy, option, value); if (code != CURLE_OK) return code; } while (0)
+    TRY(CURLOPT_PROXY, network->proxy ? network->proxy : "");
+    if (network->proxy && *network->proxy && ftp) TRY(CURLOPT_HTTPPROXYTUNNEL, 1L);
+    TRY(CURLOPT_CONNECTTIMEOUT, timeout);
+    if (ftp) TRY(CURLOPT_FTP_RESPONSE_TIMEOUT, network->timeout > 0 ? timeout : 30L);
+    TRY(CURLOPT_LOW_SPEED_LIMIT, 1L);
+    TRY(CURLOPT_LOW_SPEED_TIME, timeout > 45 ? timeout : 45L);
+    TRY(CURLOPT_IPRESOLVE, network->ip_resolve == 4 ? (long)CURL_IPRESOLVE_V4 : network->ip_resolve == 6 ? (long)CURL_IPRESOLVE_V6 : (long)CURL_IPRESOLVE_WHATEVER);
+    if (tls) TRY(CURLOPT_SSLVERSION, tls_constant(network->tls_min, 0) | tls_constant(network->tls_max, 1));
+#undef TRY
+    return CURLE_OK;
+}
+
 typedef struct {
     const WSCurlRequest *request;
     WSCurlResult *result;
@@ -89,20 +110,16 @@ void ws_curl_perform(WSCurlSession *session, const WSCurlRequest *request,
     SET(CURLOPT_USERNAME, request->username);
     SET(CURLOPT_PASSWORD, request->password);
     SET(CURLOPT_PROTOCOLS, (long)(CURLPROTO_FTP | CURLPROTO_FTPS));
-    SET(CURLOPT_PROXY, "");
     SET(CURLOPT_NETRC, (long)CURL_NETRC_IGNORED);
     SET(CURLOPT_FOLLOWLOCATION, 0L);
     SET(CURLOPT_NOSIGNAL, 1L);
-    SET(CURLOPT_CONNECTTIMEOUT, 15L);
-    SET(CURLOPT_FTP_RESPONSE_TIMEOUT, 30L);
-    SET(CURLOPT_LOW_SPEED_LIMIT, 1L);
-    SET(CURLOPT_LOW_SPEED_TIME, 45L);
+    code = apply_network(easy, &request->network, request->tls_mode, 1);
+    if (code != CURLE_OK) goto finish;
     SET(CURLOPT_FTP_SKIP_PASV_IP, 1L);
     SET(CURLOPT_FTP_FILEMETHOD, (long)CURLFTPMETHOD_SINGLECWD);
     SET(CURLOPT_SSL_VERIFYPEER, 1L);
     SET(CURLOPT_SSL_VERIFYHOST, 2L);
     SET(CURLOPT_USE_SSL, (long)(request->tls_mode ? CURLUSESSL_ALL : CURLUSESSL_NONE));
-    if (request->tls_mode) SET(CURLOPT_SSLVERSION, (long)CURL_SSLVERSION_TLSv1_2);
     if (request->ca_file && *request->ca_file) SET(CURLOPT_CAINFO, request->ca_file);
     SET(CURLOPT_WRITEFUNCTION, receive_body);
     SET(CURLOPT_WRITEDATA, &transfer);
@@ -232,12 +249,12 @@ void ws_http_perform(WSCurlSession *session, const WSHTTPRequest *request,
         SET(CURLOPT_USERNAME, request->username); SET(CURLOPT_PASSWORD, request->password);
         SET(CURLOPT_HTTPAUTH, (long)CURLAUTH_BASIC);
     }
-    SET(CURLOPT_PROXY, ""); SET(CURLOPT_NETRC, (long)CURL_NETRC_IGNORED);
+    SET(CURLOPT_NETRC, (long)CURL_NETRC_IGNORED);
     SET(CURLOPT_FOLLOWLOCATION, 0L); SET(CURLOPT_UNRESTRICTED_AUTH, 0L);
-    SET(CURLOPT_NOSIGNAL, 1L); SET(CURLOPT_CONNECTTIMEOUT, 15L);
-    SET(CURLOPT_LOW_SPEED_LIMIT, 1L); SET(CURLOPT_LOW_SPEED_TIME, 45L);
+    SET(CURLOPT_NOSIGNAL, 1L);
+    code = apply_network(easy, &request->network, request->use_tls, 0);
+    if (code != CURLE_OK) goto finish_http;
     SET(CURLOPT_SSL_VERIFYPEER, 1L); SET(CURLOPT_SSL_VERIFYHOST, 2L);
-    if (request->use_tls) SET(CURLOPT_SSLVERSION, (long)CURL_SSLVERSION_TLSv1_2);
     if (request->ca_file && *request->ca_file) SET(CURLOPT_CAINFO, request->ca_file);
     SET(CURLOPT_HTTP_VERSION, (long)CURL_HTTP_VERSION_1_1);
     SET(CURLOPT_WRITEFUNCTION, receive_body); SET(CURLOPT_WRITEDATA, &http.transfer);

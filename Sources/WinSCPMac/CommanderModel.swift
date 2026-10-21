@@ -73,7 +73,7 @@ final class CommanderModel: ObservableObject {
         do { let store = try SiteStore(); self.store = store; sites = try store.load() }
         catch { self.error = error.localizedDescription }
         refreshLocal()
-        appendLog("WinSCP for macOS 0.5.0 · Community development preview")
+        appendLog("WinSCP for macOS 0.6.0 · Community development preview")
     }
 
     func appendLog(_ text: String, error: Bool = false) {
@@ -128,13 +128,16 @@ final class CommanderModel: ObservableObject {
                 var configuration: SSHConfiguration?
                 if site.transferProtocol.usesSSH {
                     guard let store else { throw ClientError.invalid("The host key store is unavailable.") }
-                    if try await !HostTrust.isKnown(site, file: store.knownHostsFile) {
-                    let identity = try await HostTrust.scan(site)
-                    let alert = NSAlert()
-                    alert.messageText = "Trust this SSH server?"
-                    alert.informativeText = "\(identity.host)\n\(identity.algorithm)\n\n\(identity.fingerprint)\n\nVerify this fingerprint with the server administrator before connecting."
-                    alert.addButton(withTitle: "Trust and Connect"); alert.addButton(withTitle: "Cancel")
-                    guard alert.runModal() == .alertFirstButtonReturn else { status = "Connection cancelled"; return }
+                    // A tunnel's bastion is verified first; the target key is then read through it.
+                    let probe = SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path)
+                    for (target, role) in [(probe.tunnelSite, "tunnel host"), (site, "SSH server")] {
+                        guard let target, try await !HostTrust.isKnown(target, file: store.knownHostsFile) else { continue }
+                        let identity = try await HostTrust.scan(target, knownHostsFile: store.knownHostsFile)
+                        let alert = NSAlert()
+                        alert.messageText = "Trust this \(role)?"
+                        alert.informativeText = "\(identity.host)\n\(identity.algorithm)\n\n\(identity.fingerprint)\n\nVerify this fingerprint with the server administrator before connecting."
+                        alert.addButton(withTitle: "Trust and Connect"); alert.addButton(withTitle: "Cancel")
+                        guard alert.runModal() == .alertFirstButtonReturn else { status = "Connection cancelled"; return }
                         try HostTrust.trust(identity, file: store.knownHostsFile)
                     }
                     if !password.isEmpty { credential = try SessionCredential.store(password) }

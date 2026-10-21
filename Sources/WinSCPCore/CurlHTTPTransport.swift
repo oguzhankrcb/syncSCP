@@ -63,7 +63,8 @@ final class CurlHTTPTransport {
         request.ca_file = try arena.store((site.certificateAuthorityFile as NSString).expandingTildeInPath)
         request.method = try arena.store(method); request.operation = operation
         request.file_descriptor = file; request.upload_size = Int64(size)
-        request.ranged_upload = offset == nil ? 0 : 1; request.upload_offset = Int64(offset ?? 0); request.use_tls = site.transferProtocol.isEncrypted ? 1 : 0
+        request.ranged_upload = offset == nil ? 0 : 1; request.upload_offset = Int64(offset ?? 0)
+        request.network = try CurlNetwork.options(site, arena: arena); request.use_tls = site.transferProtocol.isEncrypted ? 1 : 0
         let pointers: [UnsafePointer<CChar>?] = try (headers + ["Expect:"]).map { try arena.store($0) }
         let context = CurlProgress(token: token, update: progress)
         var result = WSHTTPResult()

@@ -174,7 +174,7 @@ public actor SCPClient: RemoteFileClient {
         let session = try ssh()
         _ = try session.run("mkdir -m 700 \"$1\"", arguments: [folder], token: token)
         defer { _ = try? session.run("rm -f \"$1/payload\"; rmdir \"$1\"", arguments: [folder]) }
-        let stream = try session.channel(command: SCPShell.command("exec scp -t \"$1\"", arguments: [folder]))
+        let stream = try session.open("exec scp -t \"$1\"", arguments: [folder], token: token)
         defer { stream.close() }
         let source = try FileHandle(forReadingFrom: local)
         defer { try? source.close() }
@@ -228,7 +228,7 @@ public actor SCPClient: RemoteFileClient {
         defer { try? manager.removeItem(at: temporary) }
         let target = try FileHandle(forWritingTo: temporary)
         defer { try? target.close() }
-        let stream = try ssh().channel(command: SCPShell.command("exec scp -f \"$1\"", arguments: [remote]))
+        let stream = try ssh().open("exec scp -f \"$1\"", arguments: [remote], token: token)
         defer { stream.close() }
         try stream.send(Data([0]), token: token)
         let record = try stream.line(token: token)
