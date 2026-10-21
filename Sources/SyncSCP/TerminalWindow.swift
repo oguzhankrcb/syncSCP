@@ -31,6 +31,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
     /// The number of terminals whose ssh process is still running.
     static var activeCount: Int { openWindows.filter(\.running).count }
 
+    /// The terminal shown in `window`, if it is one.
+    static func controller(of window: NSWindow?) -> TerminalWindowController? { openWindows.first { $0.window === window } }
+
+    /// Closes without asking again; `close()` skips windowShouldClose, and windowWillClose ends ssh.
+    func closeWithoutConfirmation() { window?.close() }
+
     private init(_ launch: SSHTerminalLaunch, title: String) {
         label = title
         terminal = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 860, height: 540))

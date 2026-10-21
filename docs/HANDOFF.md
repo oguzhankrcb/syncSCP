@@ -25,7 +25,7 @@ Session ▸ **Open Terminal** (⌘T) veya araç çubuğundaki **Terminal**: bağ
 - Uzak panelde açık klasörde başlar (`/bin/sh -c 'cd "$1"…; exec …' syncscp <dir>`). SCP/Shell ayarı (ör. `sudo su -`) varsa o başlatılır; `su -` kendi ev dizinine geçer.
 - **Open in Terminal.app** (⌘⇧T): özel klasörde kendini silen `.command` dosyası; otomasyon izni gerekmiyor.
 - Settings ▸ Terminal: font ailesi (Nerd Font seçilebilir) ve boyut. Option tuşu karakter üretir (Türkçe klavyede @, | vb.); meta değil.
-- Pencere kapatılırken ve uygulama çıkarken çalışan oturum için onay isteniyor.
+- Pencere kapatılırken ve uygulama çıkarken çalışan oturum için onay isteniyor. Terminal penceresi öndeyken ⌘Q, "Close Terminal" (varsayılan) / "Quit syncSCP" / "Cancel" sorusu gösteriyor (kullanıcı ⌘Q ile yalnızca terminali kapatmak istedi).
 - `build-app.sh` her mimariyi ayrı derleyip `lipo` ile birleştiriyor; SwiftPM'in çok mimarili (Xcode) build sistemi SwiftTerm'in build-tool plugin'ini derleyemiyor.
 - `build-app.sh` SwiftTerm lisansını ve kaynak bundle'ını `Contents/Resources` altına kopyalıyor (bundle yalnızca Metal çizimi için; varsayılan çizim Metal kullanmıyor).
 

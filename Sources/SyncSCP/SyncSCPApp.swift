@@ -96,6 +96,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // ⌘Q in a terminal usually means "close this terminal"; quitting stays one click away.
+        if let terminal = TerminalWindowController.controller(of: NSApp.keyWindow) {
+            let alert = NSAlert()
+            alert.messageText = "Close this terminal, or quit syncSCP?"
+            alert.informativeText = "Closing the terminal ends only its SSH session. Quitting closes every window and ends all sessions."
+            alert.addButton(withTitle: "Close Terminal"); alert.addButton(withTitle: "Quit syncSCP"); alert.addButton(withTitle: "Cancel")
+            switch alert.runModal() {
+            case .alertFirstButtonReturn: terminal.closeWithoutConfirmation(); return .terminateCancel
+            case .alertSecondButtonReturn: return .terminateNow
+            default: return .terminateCancel
+            }
+        }
         let count = TerminalWindowController.activeCount
         guard count > 0 else { return .terminateNow }
         let alert = NSAlert()
