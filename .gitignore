@@ -4,3 +4,4 @@ dist/
 upstream/winscp/
 .DS_Store
 *.xcuserstate
+ui-mockup.html
