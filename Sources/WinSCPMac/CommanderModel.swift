@@ -50,6 +50,11 @@ final class CommanderModel: ObservableObject {
     @Published var editor: RemoteDocument?
     @Published var syncItems: [SyncItem] = []
     @Published var showSync = false
+    /// Back/forward history per pane, like WinSCP's navigation buttons.
+    @Published private(set) var backHistory: [PaneSide: [String]] = [:]
+    @Published private(set) var forwardHistory: [PaneSide: [String]] = [:]
+    @Published private(set) var remoteHome = ""
+    @Published private(set) var connectedAt: Date?
     private var syncLocal = ""
     private var syncRemote = ""
     private var syncRemoteSnapshot: [String: FileEntry] = [:]
@@ -73,7 +78,7 @@ final class CommanderModel: ObservableObject {
         do { let store = try SiteStore(); self.store = store; sites = try store.load() }
         catch { self.error = error.localizedDescription }
         refreshLocal()
-        appendLog("WinSCP for macOS 0.6.0 · Community development preview")
+        appendLog("WinSCP for macOS 0.7.0 · Community development preview")
     }
 
     func appendLog(_ text: String, error: Bool = false) {
@@ -149,6 +154,7 @@ final class CommanderModel: ObservableObject {
                 let path = site.remotePath.isEmpty || site.remotePath == "." ? home : try await client.realpath(site.remotePath)
                 let entries = try await client.list(path)
                 sessionID = UUID(); currentSite = site; remotePath = path; remoteEntries = entries
+                remoteHome = home; connectedAt = Date(); backHistory[.remote] = []; forwardHistory[.remote] = []
                 remoteSelection = []; connected = true; showConnection = false; status = "Connected to \(site.host)"
                 if FileManager.default.fileExists(atPath: site.localPath) { navigateLocal(site.localPath) }
                 let security = site.transferProtocol.usesSSH ? "Host key verified by OpenSSH." : site.transferProtocol == .s3http ? "Unencrypted S3 connection; requests are signed with SigV4." : !site.transferProtocol.isEncrypted ? "Unencrypted \(site.transferProtocol.shortTitle) connection." : "Server certificate and hostname verified; TLS required."
@@ -162,6 +168,7 @@ final class CommanderModel: ObservableObject {
         jobs.indices.filter { jobs[$0].state == .waiting || jobs[$0].state == .running }.forEach { jobs[$0].token.cancel() }
         sessionID = UUID(); connecting = true; connected = false
         remoteEntries = []; remoteSelection = []; remotePath = ""; currentSite = nil
+        remoteHome = ""; connectedAt = nil; backHistory[.remote] = []; forwardHistory[.remote] = []
         Task { await client.disconnect(); connecting = false; status = "Disconnected"; appendLog("Disconnected.") }
     }
 
@@ -177,14 +184,46 @@ final class CommanderModel: ObservableObject {
         if connected { navigateRemote(remotePath) }
     }
 
-    func navigateLocal(_ path: String) {
+    func navigateLocal(_ path: String, recordHistory: Bool = true) {
         let expanded = (path as NSString).expandingTildeInPath
         let url = URL(fileURLWithPath: expanded).standardizedFileURL
-        do { let entries = try LocalFiles.list(url.path); localPath = url.path; localEntries = entries; localSelection = [] }
-        catch { report(error) }
+        do {
+            let entries = try LocalFiles.list(url.path)
+            if recordHistory { record(.local, from: localPath, to: url.path) }
+            localPath = url.path; localEntries = entries; localSelection = []
+        } catch { report(error) }
     }
 
-    func navigateRemote(_ path: String) {
+    private func record(_ side: PaneSide, from old: String, to new: String) {
+        guard !old.isEmpty, old != new else { return }
+        backHistory[side, default: []].append(old)
+        if backHistory[side]!.count > 100 { backHistory[side]!.removeFirst() }
+        forwardHistory[side] = []
+    }
+    func canGoBack(_ side: PaneSide) -> Bool { !(backHistory[side] ?? []).isEmpty }
+    func canGoForward(_ side: PaneSide) -> Bool { !(forwardHistory[side] ?? []).isEmpty }
+    /// Moves through history; the current folder goes onto the opposite stack only once the move succeeds.
+    func goBack(_ side: PaneSide) { step(side, back: true) }
+    func goForward(_ side: PaneSide) { step(side, back: false) }
+    private func step(_ side: PaneSide, back: Bool) {
+        guard let target = (back ? backHistory[side] : forwardHistory[side])?.last else { return }
+        let current = side == .local ? localPath : remotePath
+        let done: () -> Void = { [weak self] in
+            guard let self else { return }
+            if back { self.backHistory[side]?.removeLast(); self.forwardHistory[side, default: []].append(current) }
+            else { self.forwardHistory[side]?.removeLast(); self.backHistory[side, default: []].append(current) }
+        }
+        if side == .local {
+            let before = localPath
+            navigateLocal(target, recordHistory: false)
+            if localPath != before { done() }
+        } else { navigateRemote(target, recordHistory: false, completion: done) }
+    }
+    func goHome(_ side: PaneSide) {
+        side == .local ? navigateLocal(FileManager.default.homeDirectoryForCurrentUser.path) : navigateRemote(remoteHome.isEmpty ? "/" : remoteHome)
+    }
+
+    func navigateRemote(_ path: String, recordHistory: Bool = true, completion: (() -> Void)? = nil) {
         guard connected, !operationBusy else { return }
         operationBusy = true
         let generation = sessionID
@@ -194,7 +233,9 @@ final class CommanderModel: ObservableObject {
                 let canonical = try await client.realpath(path)
                 let entries = try await client.list(canonical)
                 guard generation == sessionID else { return }
+                if recordHistory { record(.remote, from: remotePath, to: canonical) }
                 remotePath = canonical; remoteEntries = entries; remoteSelection = []
+                completion?()
             } catch { if generation == sessionID { report(error) } }
         }
     }

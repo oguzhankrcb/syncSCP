@@ -2,7 +2,7 @@
 
 A native macOS implementation of WinSCP's Commander workflow, built with SwiftUI, AppKit, and macOS's OpenSSH and libcurl. Free software under **GPL-3.0-or-later**.
 
-**Status: 0.6.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
+**Status: 0.7.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
 
 ## Build and run
 
@@ -21,7 +21,13 @@ For a development build, use `./scripts/build-app.sh --debug`. For an Apple Sili
 
 ## Available now
 
-- Commander-style local and remote file tables, multiple selection, sorting by name/size, path navigation, hidden-file toggle, and filtering.
+- WinSCP's Commander layout with a native macOS finish:
+  - a main toolbar and a session tab showing the site color and protocol;
+  - per-pane navigation (path field with a parent-folder menu, back/forward history, parent, root, home, refresh) and action bars (Upload/Download, Edit, Delete, Rename, Properties, New Folder);
+  - a highlighted path strip on the active pane, local Name/Size/Type/Changed and remote Name/Size/Changed/Rights columns, and WinSCP's "0 B of 34.9 MB in 0 of 40" footer;
+  - a Queue/Log panel and a status bar with the verification state, shell/tunnel/proxy and connection time;
+  - multiple selection, sorting, hidden files and filtering.
+- WinSCP-style Login: sites grouped by folder (`Folder/Name`), site search, separate file protocol and encryption choices, explicit Save / Save As… and Manage.
 - Real SFTP v3 over `/usr/bin/ssh`, with explicit first-use host fingerprint approval and strict verification on subsequent connections.
 - Real legacy SCP over shared OpenSSH channels, with a separate Unix shell/stat backend for directory and file operations. See [SCP requirements and limits](docs/SCP.md).
 - FTP, explicit FTPS, and implicit FTPS through macOS's system libcurl. FTPS requires TLS on both control and data channels, certificate-chain verification, and hostname verification. Optional per-site PEM CA bundles support private certificate authorities without disabling verification.

@@ -1,6 +1,6 @@
 # WinSCP macOS — oturum devir notu
 
-Son güncelleme: 21 Ekim 2026 (0.6.0 / Advanced Site Settings). Bu belge, geliştirmeyi yeni bir oturumda mevcut dosyalardan sürdürmek için hazırlanmıştır.
+Son güncelleme: 21 Ekim 2026 (0.7.0 / arayüz yenileme). Bu belge, geliştirmeyi yeni bir oturumda mevcut dosyalardan sürdürmek için hazırlanmıştır.
 
 ## Amaç ve mevcut yaklaşım
 
@@ -10,7 +10,7 @@ Kullanıcının hedefi WinSCP'nin macOS üzerinde mümkün olduğunca bire bir �
 /Users/oguzhankaracabay/Desktop/projects/WinSCP-Mac-Port
 ```
 
-Mevcut uygulama **0.6.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
+Mevcut uygulama **0.7.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
 
 Swift Package Manager kullanılıyor; hedef macOS 13+, paket araç sürümü 5.9. Son doğrulamalar Apple Silicon üzerinde Swift 6.2 ile yapıldı. Uygulama macOS'un OpenSSH, libcurl ve CryptoKit bileşenlerini kullanıyor; indirilmiş Swift paket bağımlılığı, AWS SDK, Electron, Wine veya Python çalışma zamanı bağımlılığı yok. Python ve Docker yalnızca bağımsız test sunucuları için kullanılıyor.
 
@@ -75,11 +75,11 @@ Aşağıdaki yolların tamamı proje dizinine göredir:
 
 ## Son doğrulama ve mevcut çıktılar
 
-0.6.0'ın son kaynakları üzerinde hem debug hem release testleri tamamlandı:
+0.7.0'ın son kaynakları üzerinde hem debug hem release testleri tamamlandı:
 
 ```text
-./scripts/test-ssh.sh --all             → 98 XCTest, 0 failure, 0 skip
-./scripts/test-ssh.sh --all -c release  → 98 XCTest, 0 failure, 0 skip
+./scripts/test-ssh.sh --all             → 98 XCTest, 0 failure, 0 skip   (0.7.0)
+./scripts/test-ssh.sh --all -c release  → 98 XCTest, 0 failure, 0 skip   (0.7.0)
 ```
 
 Son çalıştırmalarda compiler warning yok. Testler gerçek OpenSSH/SFTP, SFTP subsystem'i kapalı ayrı SCP sunucusu, pyftpdlib 2.2.0 FTP/FTPS, WsgiDAV 4.3.5 / Cheroot 11.1.2 HTTP/HTTPS ve Docker'da iki MinIO (HTTP + HTTPS) sunucusunu kullanıyor. MinIO imajı digest ile sabitlenmiş `bitnamilegacy/minio:2025.7.23`; resmî topluluk MinIO imajları artık yayımlanmıyor. Geçici anahtarlar, CA ve dosyalar üretildi; kullanıcının üretim sunucusu/kimlik bilgileri kullanılmadı.
@@ -90,13 +90,13 @@ Mevcut çıktılar:
 
 ```text
 dist/WinSCP for macOS.app
-dist/WinSCPMac-0.6.0-universal.zip
-dist/WinSCPMac-0.6.0-source.zip   (untracked mockup HTML'i de içeriyor; script untracked dosyaları da paketler)
+dist/WinSCPMac-0.7.0-universal.zip
+dist/WinSCPMac-0.7.0-source.zip   (untracked mockup HTML'i de içeriyor; script untracked dosyaları da paketler)
 ```
 
-Universal sürüm arm64 ve x86_64 içeriyor, ad-hoc imzalı ve strict codesign kontrolünden geçti. **Fiziksel Intel testi, eski macOS testi, Developer ID imzası ve notarization yapılmadı.** GitHub Actions workflow'u repo push edildiği için GitHub'da tetiklenebilir; sonucunu doğrulamadan başarılı olduğu iddia edilmemeli. Hosted macOS runner'larda Docker olmadığından CI `WINSCP_SKIP_S3=1` kullanır; S3 testleri orada skip olur. Önceki 0.1–0.4 ZIP'leri de duruyor; güncel paket 0.6.0.
+Universal sürüm arm64 ve x86_64 içeriyor, ad-hoc imzalı ve strict codesign kontrolünden geçti. **Fiziksel Intel testi, eski macOS testi, Developer ID imzası ve notarization yapılmadı.** GitHub Actions workflow'u repo push edildiği için GitHub'da tetiklenebilir; sonucunu doğrulamadan başarılı olduğu iddia edilmemeli. Hosted macOS runner'larda Docker olmadığından CI `WINSCP_SKIP_S3=1` kullanır; S3 testleri orada skip olur. Önceki 0.1–0.4 ZIP'leri de duruyor; güncel paket 0.7.0.
 
-Son kayıtlar `.build/settings-verification-tests.log`, `.build/settings-verification-release-tests.log`, `.build/settings-verification-package.log` içinde.
+Son kayıtlar `.build/ui-verification-tests.log`, `.build/ui-verification-release-tests.log`, `.build/ui-verification-package.log` içinde.
 
 ## Çalıştırma ve geliştirme komutları
 
@@ -145,7 +145,16 @@ Yerel tool sandbox'ında port açma, bağımlılık indirme veya `iconutil` izin
 
 ## Kalan işler ve önerilen ilerleme sırası
 
-**Sıradaki iş (kullanıcının onayladığı plan): 0.7.0, ana pencerenin onaylanan mockup'a göre yeniden tasarımı.** Mockup: https://claude.ai/artifact/RcPqadNgvmoPmpCzifPjEc. Bu sürüm oturum sekmeleri, panel başına gezinme ve işlem çubukları, aktif panel yol şeridi, Rights/Owner sütunları, kuyruk paneli ve durum çubuğunu içeriyor. Login ekranı da mockup'taki gibi gruplu site ağacına geçmeli. Advanced Site Settings'te "Planned" kalan ayarlar (`docs/SETTINGS.md`) sonraki sürümlerde backend'e bağlanmalı.
+**0.7.0'da ana pencere ve Login onaylanan mockup'a göre yenilendi.** Yeni öğeler:
+
+- panel başına gezinme/işlem çubukları ve geri/ileri geçmişi (`CommanderModel.backHistory`/`forwardHistory`)
+- `Klasör/Ad` site gruplama (`SiteName`)
+- protokol ailesi + Encryption seçimi (`ProtocolFamily`)
+- açık Save / Save As…
+
+Artık login'de site otomatik kaydedilmiyor. **Kullanıcının istediği sıradaki iş: Windows WinSCP'den tüm verilerin (siteler, klasörler, Advanced ayarlar, host key'ler) import edilmesi.**
+
+**Önceki plan notu:** Mockup: https://claude.ai/artifact/RcPqadNgvmoPmpCzifPjEc. Bu sürüm oturum sekmeleri, panel başına gezinme ve işlem çubukları, aktif panel yol şeridi, Rights/Owner sütunları, kuyruk paneli ve durum çubuğunu içeriyor. Login ekranı da mockup'taki gibi gruplu site ağacına geçmeli. Advanced Site Settings'te "Planned" kalan ayarlar (`docs/SETTINGS.md`) sonraki sürümlerde backend'e bağlanmalı.
 
 S3 0.5.0'da temel düzeyde tamamlandı. S3 için kalanlar: native arayüzde S3 akışının elle denenmesi; AWS ve diğer sağlayıcılarla (R2, B2, Wasabi, Ceph) doğrulama; otomatik region keşfi; klasör rename; versioning, ACL/tag ve storage class; SSE-C; bucket yönetimi; multipart resume. Protokol eşitliğinde S3 sonrası net bir "sıradaki protokol" kalmadı. Bundan sonra öncelik günlük kullanım (drag/drop, sekmeler), aktarım dayanıklılığı (resume/retry) veya kimlik doğrulama (SSH config/jump host, keyboard-interactive) olabilir. Bu bir öneridir, kullanıcı seçimi değildir.
 

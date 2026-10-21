@@ -51,7 +51,7 @@ struct WinSCPMacApp: App {
                 Button("About WinSCP for macOS") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "WinSCP for macOS · Community Port",
-                        .applicationVersion: "0.6.0 — Development Preview",
+                        .applicationVersion: "0.7.0 — Development Preview",
                         .credits: NSAttributedString(string: "Independent community implementation of WinSCP workflows.\nOriginal WinSCP: Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }

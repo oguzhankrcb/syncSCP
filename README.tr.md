@@ -2,7 +2,7 @@
 
 WinSCP'nin çift panelli Commander iş akışını macOS'a taşımayı hedefleyen, SwiftUI/AppKit tabanlı açık kaynak proje. Lisans: **GPL-3.0-or-later**.
 
-**0.6.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
+**0.7.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
 
 ```sh
 ./scripts/swift.sh test
@@ -35,5 +35,13 @@ Tüm protokol testleri için Python 3.11+ ile `./scripts/setup-protocol-tests.sh
 - kimlik doğrulama seçenekleri, S3 seçenekleri, not ve site rengi
 
 PuTTY'ye özgü veya henüz uygulanmayan ayarlar gri görünür ve nedenini belirten bir etiket taşır. [Ayar ayrıntıları](docs/SETTINGS.md).
+
+0.7.0 ile ana pencere ve Login ekranı onaylanan mockup'a göre yenilendi. Yeni öğeler:
+
+- WinSCP düzeninde araç çubuğu ve oturum sekmesi
+- panel başına gezinme çubuğu (geri/ileri geçmişi, üst klasör, kök, ev, yenile) ve işlem çubuğu
+- aktif panelde mavi yol şeridi, Type/Changed/Rights sütunları ve "X / Y içinde a / b" özeti
+- kuyruk/günlük paneli ve bağlantı süresini gösteren durum çubuğu
+- Login'de klasörlü site ağacı (`Klasör/Ad`), arama, ayrı protokol/şifreleme seçimi, açık Save / Save As… ve Manage
 
 Tam WinSCP betik uyumluluğu, tünelleme, aktarımı kaldığı yerden sürdürme ve tam özellik eşitliği henüz yoktur. Ayrıntılar: [özellik tablosu](docs/PARITY.md), [İngilizce kullanım ve mimari](README.md).

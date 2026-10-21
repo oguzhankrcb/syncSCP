@@ -1,5 +1,11 @@
 # Verification record
 
+## 0.7.0 — Commander and Login redesign
+
+Verified locally on 2026-10-21. The redesign follows the mockup the user approved. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **98 XCTest cases, zero failures, zero skips** (there are no new automated UI tests; the core is unchanged). The main window was rendered offscreen in light and dark mode, disconnected and with sample connected state. The Login sheet was rendered with grouped sample sites. Two layout faults found in those renders were fixed: clipped Rights columns, and "Zero KB" totals. The universal 0.7.0 app was packaged, passed strict ad-hoc codesign verification, and launched and quit normally.
+
+**Not exercised interactively:** clicking through the new toolbars, back/forward history, Save As/Rename, or a real session in the running app. Mockup controls without a feature behind them were deliberately left out rather than added as dead buttons: Compare directories, Terminal, transfer-settings presets, Find Files, and the Owner column.
+
 ## 0.6.0 — Advanced Site Settings
 
 Verified locally on 2026-10-21 with Swift 6.2, OpenSSH 10.2p1, system libcurl and the existing SSH, FTP, WebDAV and MinIO fixtures. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **98 XCTest cases, zero failures, zero skips**, with no compiler warnings.

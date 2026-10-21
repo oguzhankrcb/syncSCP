@@ -4,7 +4,7 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 
 | Upstream capability | Preview status | Remaining work |
 | --- | --- | --- |
-| Commander dual panes | Implemented | Drag/drop, navigation history, directory tree, selection masks, complete shortcuts |
+| Commander dual panes | Implemented | WinSCP layout with per-pane navigation/action bars, back/forward history, Type/Changed/Rights columns and selection totals; drag/drop, directory tree, selection masks, multiple session tabs and complete shortcuts remain |
 | Explorer interface | Missing | Single-panel mode |
 | SFTP | Implemented, v3 | More server interoperability, extensions, pipelining, non-UTF-8 policy |
 | SSH key / agent / password | Implemented | Hardware-key and keyboard-interactive coverage, GSSAPI, persistent credentials |
@@ -19,7 +19,7 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | Permissions | Partial (n/a for WebDAV/S3) | Single-file numeric POSIX mode, recursive editor and ownership remaining |
 | Text editor | Partial | UTF-8 save-back, 4 MB limit; other encodings, large files, external editor watch remaining |
 | Synchronization | Partial | One-way reviewed upload with size/mtime revalidation; two-way, checksums, masks, watches remaining |
-| Sites / workspaces | Partial | JSON sites with notes and colors; tabs, workspaces, WinSCP INI import remaining |
+| Sites / workspaces | Partial | JSON sites in WinSCP-style folders, with notes, colors, search, Save As and rename; tabs, workspaces, WinSCP INI import remaining |
 | Advanced Site Settings | Implemented dialog, partial effect | All upstream pages and settings round-trip; shell/SFTP server, timeouts, keepalives, IP version, SOCKS/HTTP/local proxy, SSH tunnel, TLS versions, cipher/kex policy, rekey, authentication options and S3 options are applied; the rest are badged as planned or unavailable in [SETTINGS.md](SETTINGS.md) |
 | Automation / CLI | Missing | Script parser, protocol URLs, compatible exit codes and logs |
 | .NET assembly | Missing | Evaluate portable automation API and compatibility strategy |
