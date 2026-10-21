@@ -6,15 +6,17 @@ Upstream's forms and components use Embarcadero VCL; its nonvisual core also use
 
 ## Layers
 
-`WinSCPCore` contains file/session models, site persistence, protocol-independent `RemoteSession` and `RemoteFileClient` interfaces, serialized SFTP/SCP/FTP/WebDAV actors, an SFTP v3 codec, OpenSSH process transport, and the synchronization planner. The original `CCurlTransport` C bridge wraps macOS libcurl for FTP/FTPS. There are no downloaded application package dependencies.
+`WinSCPCore` contains file/session models, site persistence, protocol-independent `RemoteSession` and `RemoteFileClient` interfaces, serialized SFTP/SCP/FTP/WebDAV/S3 actors, an SFTP v3 codec, OpenSSH process transport, and the synchronization planner. The original `CCurlTransport` C bridge wraps macOS libcurl for FTP/FTPS. There are no downloaded application package dependencies.
 
 `WinSCPMac` uses SwiftUI/AppKit for the Commander window, native tables and menus, connection settings, host trust, Keychain-backed askpass, queue, editor, and reviewed synchronization. `CommanderModel` is isolated to the main actor. The SFTP actor performs blocking pipe I/O away from the UI actor; each protocol operation is serialized. Only one session and one transfer worker are active at a time.
 
-The UI routes every remote file operation through `RemoteSession`, which chooses the backend at login. SFTP, SCP, FTP and WebDAV share the same tables, queue, editor, and synchronization planner. Existing saved sites decode as SFTP when the newly added protocol/CA fields are absent.
+The UI routes every remote file operation through `RemoteSession`, which chooses the backend at login. SFTP, SCP, FTP, WebDAV and S3 share the same tables, queue, editor, and synchronization planner. Existing saved sites decode as SFTP when the newly added protocol/CA fields are absent.
 
 FTP uses a per-session libcurl easy handle and connection cache owned by its actor. Credentials are supplied through the C API and live in process memory until disconnect; no shell, temporary credential file, or CLI arguments are involved. The C layer streams file descriptors, bounds listing memory, reports progress/cancellation, enforces response/connect/low-speed timeouts, and requires certificate plus hostname verification for both FTPS modes. See [FTP.md](FTP.md) for protocol-specific semantics.
 
 WebDAV uses a separate HTTP entry point in the C bridge with streaming file descriptors and bounded headers/bodies. Its actor parses namespace-aware PROPFIND XML with external entities and DTDs disabled, validates URL origin/path scope, and retains ETags in `FileEntry`. Uploads use an owned temporary collection plus conditional MOVE; cancellation removes the parent to prevent a delayed PUT recreating its payload. Basic credentials are session-memory only; HTTPS always verifies trust and hostname. See [WEBDAV.md](WEBDAV.md) for semantics and limitations.
+
+S3 reuses the HTTP entry point without Basic credentials. Each request is signed with AWS Signature Version 4 (CryptoKit HMAC/SHA-256) over an exact, already-encoded path that libcurl sends verbatim (`PATH_AS_IS`), and the host header is signed explicitly. Payloads are signed with their real SHA-256. File bodies, including multipart parts, are streamed with `pread` over an offset/length range, so a part never depends on the descriptor position. A bounded, namespace-agnostic XML tree parses listing, multipart and error documents with DTDs and entities refused. Writes use `If-None-Match: *` / `If-Match` (on `CompleteMultipartUpload` for multipart uploads and copies), and failed multipart uploads are aborted. The secret key and session token are session-memory only and never transmitted. See [S3.md](S3.md).
 
 ## SSH and credentials
 

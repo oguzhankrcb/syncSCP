@@ -32,27 +32,38 @@ final class CurlHTTPTransport {
     private let handle: OpaquePointer
     private let site: Site
     private let password: String
-    init(site: Site, password: String) throws {
+    private let basicAuth: Bool
+    /// `basicAuth: false` sends no HTTP credentials; S3 signs each request itself.
+    init(site: Site, password: String, basicAuth: Bool = true) throws {
         guard !password.contains("\0") else { throw ClientError.invalid("A password cannot contain a null character.") }
         guard let handle = ws_curl_create() else { throw ClientError.connection("Cannot initialize the system HTTP transport.") }
-        self.handle = handle; self.site = site; self.password = password
+        self.handle = handle; self.site = site; self.password = password; self.basicAuth = basicAuth
     }
     deinit { ws_curl_destroy(handle) }
     func perform(path: String, directory: Bool = false, method: String, headers: [String] = [], body: Data = Data(),
                  operation: Int32 = 0, file: Int32 = -1, size: UInt64 = 0, token: CancellationToken = CancellationToken(),
                  progress: @escaping @Sendable (UInt64, UInt64) -> Void = { _, _ in }) throws -> DAVHTTPResponse {
+        try perform(url: DAVPath.url(site: site, path: path, directory: directory), method: method, headers: headers, body: body,
+                    operation: operation, file: file, size: size, token: token, progress: progress)
+    }
+    /// `offset` uploads exactly `size` bytes from that file position without moving the descriptor.
+    func perform(url: String, method: String, headers: [String] = [], body: Data = Data(),
+                 operation: Int32 = 0, file: Int32 = -1, offset: UInt64? = nil, size: UInt64 = 0, token: CancellationToken = CancellationToken(),
+                 progress: @escaping @Sendable (UInt64, UInt64) -> Void = { _, _ in }) throws -> DAVHTTPResponse {
         try token.check()
-        guard size <= UInt64(Int64.max) else { throw ClientError.unsupported("The file is too large for HTTP transfer.") }
+        guard size <= UInt64(Int64.max), (offset ?? 0) <= UInt64(Int64.max) - size else { throw ClientError.unsupported("The file is too large for HTTP transfer.") }
         for header in headers {
             guard !header.contains("\r"), !header.contains("\n"), !header.contains("\0") else { throw ClientError.invalid("Invalid HTTP header value.") }
         }
         let arena = CStringArena()
         var request = WSHTTPRequest()
-        request.url = try arena.store(DAVPath.url(site: site, path: path, directory: directory))
-        request.username = try arena.store(site.username); request.password = try arena.store(password)
+        request.url = try arena.store(url)
+        request.basic_auth = basicAuth ? 1 : 0
+        request.username = try arena.store(basicAuth ? site.username : ""); request.password = try arena.store(basicAuth ? password : "")
         request.ca_file = try arena.store((site.certificateAuthorityFile as NSString).expandingTildeInPath)
         request.method = try arena.store(method); request.operation = operation
-        request.file_descriptor = file; request.upload_size = Int64(size); request.use_tls = site.transferProtocol.isEncrypted ? 1 : 0
+        request.file_descriptor = file; request.upload_size = Int64(size)
+        request.ranged_upload = offset == nil ? 0 : 1; request.upload_offset = Int64(offset ?? 0); request.use_tls = site.transferProtocol.isEncrypted ? 1 : 0
         let pointers: [UnsafePointer<CChar>?] = try (headers + ["Expect:"]).map { try arena.store($0) }
         let context = CurlProgress(token: token, update: progress)
         var result = WSHTTPResult()
@@ -69,7 +80,7 @@ final class CurlHTTPTransport {
         defer { ws_http_result_free(&result) }
         try token.check()
         if result.response.local_errno != 0 { throw POSIXError(POSIXErrorCode(rawValue: result.response.local_errno) ?? .EIO) }
-        if result.response.body_too_large != 0 { throw ClientError.unsupported("WebDAV responses are limited to 16 MB and headers to 256 KiB.") }
+        if result.response.body_too_large != 0 { throw ClientError.unsupported("\(site.transferProtocol.shortTitle) responses are limited to 16 MB and headers to 256 KiB.") }
         if result.response.code != 0 {
             let message = withUnsafePointer(to: &result.response.error) { $0.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) } }
             throw ClientError.connection("\(site.transferProtocol.shortTitle): \(password.isEmpty ? message : message.replacingOccurrences(of: password, with: "••••"))")

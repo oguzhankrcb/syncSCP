@@ -46,6 +46,10 @@ typedef struct {
     int file_descriptor;
     int64_t upload_size;
     int use_tls;
+    /* S3: credentials are signed by the caller, uploads read [offset, offset+size) with pread. */
+    int basic_auth;
+    int ranged_upload;
+    int64_t upload_offset;
 } WSHTTPRequest;
 typedef struct {
     WSCurlResult response;

@@ -23,7 +23,8 @@ extension SFTPClient: RemoteFileClient {}
 public actor RemoteSession {
     private var backend: (any RemoteFileClient)?
     public init() {}
-    public func connect(site: Site, password: String, sshConfiguration: SSHConfiguration? = nil) async throws -> String {
+    /// For S3 the user name is the access key ID, `password` the secret key and `s3SessionToken` optional temporary credentials.
+    public func connect(site: Site, password: String, sshConfiguration: SSHConfiguration? = nil, s3SessionToken: String = "") async throws -> String {
         await disconnect()
         do {
             if site.transferProtocol.usesSSH {
@@ -34,6 +35,9 @@ public actor RemoteSession {
                 }
                 let client = SFTPClient(); backend = client
                 return try await client.connect(sshConfiguration)
+            } else if site.transferProtocol.usesS3 {
+                let client = S3Client(); backend = client
+                return try await client.connect(site: site, secretKey: password, sessionToken: s3SessionToken)
             } else if site.transferProtocol.usesWebDAV {
                 let client = WebDAVClient(); backend = client
                 return try await client.connect(site: site, password: password)

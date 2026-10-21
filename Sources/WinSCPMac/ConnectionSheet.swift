@@ -8,6 +8,7 @@ struct ConnectionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var site = Site()
     @State private var password = ""
+    @State private var sessionToken = ""
     @State private var selectedSite: UUID?
     @State private var saveSite = true
     @State private var showAdvanced = false
@@ -41,19 +42,22 @@ struct ConnectionSheet: View {
                         Text("File protocol").frame(width: 105, alignment: .leading)
                         Picker("File protocol", selection: Binding(get: { site.transferProtocol }, set: { value in
                             if site.port == site.transferProtocol.defaultPort { site.port = value.defaultPort }
+                            if value.usesS3, !site.transferProtocol.usesS3, site.host.isEmpty { site.host = "s3.amazonaws.com" }
+                            if value.usesS3, !site.transferProtocol.usesS3, site.username == NSUserName() { site.username = "" }
                             site.transferProtocol = value
-                            if value.usesWebDAV { showAdvanced = true }
+                            if value.usesWebDAV || value.usesS3 { showAdvanced = true }
                         })) {
                             ForEach(TransferProtocol.allCases, id: \.self) { Text($0.title).tag($0) }
                         }.labelsHidden().accessibilityLabel("File protocol")
                     }
                     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 13) {
-                        GridRow { Text("Host name").frame(width: 93, alignment: .leading); TextField("example.com", text: $site.host).accessibilityLabel("Host name") }
+                        GridRow { Text("Host name").frame(width: 93, alignment: .leading); TextField(s3 ? "s3.amazonaws.com" : "example.com", text: $site.host).accessibilityLabel("Host name") }
                         GridRow { Text("Port number"); TextField("22", value: $site.port, format: .number.grouping(.never)).frame(width: 95).accessibilityLabel("Port number") }
-                        GridRow { Text("User name"); TextField("username", text: $site.username).accessibilityLabel("User name") }
-                        GridRow { Text("Password"); SecureField(site.transferProtocol.usesSSH ? "Password or key passphrase" : "Account password", text: $password).accessibilityLabel(site.transferProtocol.usesSSH ? "Password or key passphrase" : "Password") }
+                        GridRow { Text(s3 ? "Access key ID" : "User name"); TextField(s3 ? "AKIA…" : "username", text: $site.username).accessibilityLabel(s3 ? "Access key ID" : "User name") }
+                        GridRow { Text(s3 ? "Secret key" : "Password"); SecureField(site.transferProtocol.usesSSH ? "Password or key passphrase" : s3 ? "Secret access key" : "Account password", text: $password).accessibilityLabel(site.transferProtocol.usesSSH ? "Password or key passphrase" : s3 ? "Secret access key" : "Password") }
+                        if s3 { GridRow { Text("Session token"); SecureField("Optional, for temporary credentials", text: $sessionToken).accessibilityLabel("Session token") } }
                     }
-                    Text(site.transferProtocol.usesSSH ? "Leave the password blank to use your SSH agent or default SSH keys. Passwords are removed from Keychain after login." : "The password stays in memory for this connection and is never written to saved site settings.")
+                    Text(site.transferProtocol.usesSSH ? "Leave the password blank to use your SSH agent or default SSH keys. Passwords are removed from Keychain after login." : s3 ? "The secret key and session token stay in memory for this connection and are never written to saved site settings." : "The password stays in memory for this connection and is never written to saved site settings.")
                         .font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     DisclosureGroup("Advanced settings", isExpanded: $showAdvanced) {
                         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
@@ -67,11 +71,18 @@ struct ConnectionSheet: View {
                                     HStack { TextField("System trust (default)", text: $site.certificateAuthorityFile); Button("Choose…") { chooseCA() } }
                                 }
                             }
-                            GridRow { Text(site.transferProtocol.usesWebDAV ? "WebDAV path" : "Remote folder"); TextField(site.transferProtocol.usesWebDAV ? "/dav/" : ".", text: $site.remotePath).accessibilityLabel("Remote folder") }
+                            if s3 {
+                                GridRow { Text("Region"); TextField("us-east-1", text: $site.s3Region).accessibilityLabel("Region") }
+                                GridRow { Text("URL style"); Toggle("Path-style (bucket in the URL path)", isOn: $site.s3PathStyle) }
+                            }
+                            GridRow { Text(site.transferProtocol.usesWebDAV ? "WebDAV path" : s3 ? "Bucket / folder" : "Remote folder"); TextField(site.transferProtocol.usesWebDAV ? "/dav/" : s3 ? "/ (all buckets) or /my-bucket" : ".", text: $site.remotePath).accessibilityLabel("Remote folder") }
                             GridRow { Text("Local folder"); TextField("~", text: $site.localPath) }
                         }.padding(.top, 10)
                         if site.transferProtocol.usesWebDAV {
                             Text("Enter the server endpoint path, such as /dav/. Use HTTPS to protect your password and files.").font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                        if s3 {
+                            Text("Use the regional endpoint and region of your bucket. Listing all buckets needs extra permission; otherwise enter /bucket-name. IP addresses, localhost and dotted bucket names over HTTPS always use path-style URLs.").font(.system(size: 10)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     Divider()
@@ -88,30 +99,32 @@ struct ConnectionSheet: View {
             Divider()
             HStack {
                 Image(systemName: site.transferProtocol.isEncrypted ? "lock.shield" : "exclamationmark.triangle").foregroundStyle(.secondary)
-                Text(site.transferProtocol.usesSSH ? "Server identity is verified before authentication." : !site.transferProtocol.isEncrypted ? "\(site.transferProtocol.shortTitle) sends credentials and files unencrypted." : "TLS requires a trusted certificate matching the server.")
+                Text(site.transferProtocol.usesSSH ? "Server identity is verified before authentication." : site.transferProtocol == .s3http ? "S3 over HTTP signs requests but sends files and session tokens unencrypted." : !site.transferProtocol.isEncrypted ? "\(site.transferProtocol.shortTitle) sends credentials and files unencrypted." : "TLS requires a trusted certificate matching the server.")
                     .font(.system(size: 10)).foregroundStyle(.secondary)
                 Spacer()
                 if model.connecting { ProgressView().controlSize(.small) }
-                Button("Cancel") { password = ""; dismiss() }.keyboardShortcut(.cancelAction).disabled(model.connecting)
+                Button("Cancel") { password = ""; sessionToken = ""; dismiss() }.keyboardShortcut(.cancelAction).disabled(model.connecting)
                 Button("Login") {
                     model.error = nil
                     do { try site.validate() } catch { model.report(error); return }
                     if saveSite { model.saveSite(site) }
-                    model.connect(site: site, password: password)
-                    password = ""
+                    model.connect(site: site, password: password, sessionToken: s3 ? sessionToken : "")
+                    password = ""; sessionToken = ""
                 }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).disabled(model.busy)
             }.padding(16)
         }
         .frame(width: 646)
         .onChange(of: selectedSite) { id in
-            site = model.sites.first(where: { $0.id == id }) ?? Site(); password = ""; model.error = nil
+            site = model.sites.first(where: { $0.id == id }) ?? Site(); password = ""; sessionToken = ""; model.error = nil
         }
         .onAppear {
-            if let requested = model.requestedSite { site = requested; selectedSite = requested.id; showAdvanced = requested.transferProtocol.usesWebDAV || !requested.privateKey.isEmpty || !requested.certificateAuthorityFile.isEmpty }
+            if let requested = model.requestedSite { site = requested; selectedSite = requested.id; showAdvanced = requested.transferProtocol.usesWebDAV || requested.transferProtocol.usesS3 || !requested.privateKey.isEmpty || !requested.certificateAuthorityFile.isEmpty }
         }
         .onDisappear { model.requestedSite = nil }
         .interactiveDismissDisabled(model.connecting)
     }
+
+    private var s3: Bool { site.transferProtocol.usesS3 }
 
     private func chooseKey() {
         let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.canChooseFiles = true; panel.showsHiddenFiles = true

@@ -2,7 +2,7 @@
 
 A native macOS implementation of WinSCP's Commander workflow, built with SwiftUI, AppKit, and macOS's OpenSSH and libcurl. Free software under **GPL-3.0-or-later**.
 
-**Status: 0.4.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
+**Status: 0.5.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
 
 ## Build and run
 
@@ -26,6 +26,7 @@ For a development build, use `./scripts/build-app.sh --debug`. For an Apple Sili
 - Real legacy SCP over shared OpenSSH channels, with a separate Unix shell/stat backend for directory and file operations. See [SCP requirements and limits](docs/SCP.md).
 - FTP, explicit FTPS, and implicit FTPS through macOS's system libcurl. FTPS requires TLS on both control and data channels, certificate-chain verification, and hostname verification. Optional per-site PEM CA bundles support private certificate authorities without disabling verification.
 - WebDAV over HTTP and verified HTTPS: namespace-aware PROPFIND, GET/PUT, collections, MOVE/DELETE, ETag-conditional replacement, and temporary-collection cleanup. See [WebDAV requirements and limits](docs/WEBDAV.md).
+- S3 over HTTPS/HTTP for AWS and S3-compatible services: AWS Signature V4 with SHA-256 signed payloads, bucket and folder browsing with paginated listings, multipart uploads, server-enforced no-clobber and ETag-conditional replacement, server-side-copy rename, and SHA-256 download checks when available. Secret keys and session tokens stay in memory. See [S3 requirements and limits](docs/S3.md).
 - FTP MLSD listings with Unix/DOS LIST fallback, binary transfers, UTC modification times when exposed, and permissions when the server provides them. Unknown rights are shown as unavailable.
 - SSH-agent/default-key, explicit OpenSSH private key, and password/key-passphrase authentication. Passwords are temporarily placed in Keychain for `SSH_ASKPASS`, then removed after the connection attempt; saved site JSON contains no passwords.
 - File and recursive directory upload/download; a sequential queue, progress, cancellation, and per-job results. Files are transferred through temporary `.filepart` paths and committed after completion.
@@ -39,9 +40,9 @@ SFTP uses binary protocol messages rather than shell commands or parsing `ls`. S
 
 ## Connect
 
-Choose **New Session**, select SFTP, SCP, FTP, an FTPS mode, or WebDAV over HTTP/HTTPS, then enter the host, port, and username. Protocol selection updates standard ports (SFTP/SCP 22, FTP/explicit FTPS 21, implicit FTPS 990, HTTP WebDAV 80, HTTPS WebDAV 443). Saved sites open in the login sheet so passwords can be entered again; older site files retain their original settings and default to SFTP.
+Choose **New Session**, select SFTP, SCP, FTP, an FTPS mode, WebDAV or S3 over HTTP/HTTPS, then enter the host, port, and username. Protocol selection updates standard ports (SFTP/SCP 22, FTP/explicit FTPS 21, implicit FTPS 990, HTTP WebDAV/S3 80, HTTPS WebDAV/S3 443). Saved sites open in the login sheet so passwords can be entered again; older site files retain their original settings and default to SFTP.
 
-For SFTP or SCP, compare the first-use host fingerprint with a trusted source before approving it. Key and agent authentication do not require a saved password. For FTPS, the certificate must be valid for the selected host and trusted by the system or the selected PEM CA bundle. Plain FTP displays its unencrypted status. FTP/FTPS passwords stay in memory until disconnect and are never written to site JSON or command-line arguments. Advanced settings select initial directories, an SSH key, or a TLS CA file. For WebDAV, enter the endpoint path in WebDAV path; Basic authentication and ETag-conditional replacement are supported.
+For SFTP or SCP, compare the first-use host fingerprint with a trusted source before approving it. Key and agent authentication do not require a saved password. For FTPS, the certificate must be valid for the selected host and trusted by the system or the selected PEM CA bundle. Plain FTP displays its unencrypted status. FTP/FTPS passwords stay in memory until disconnect and are never written to site JSON or command-line arguments. Advanced settings select initial directories, an SSH key, or a TLS CA file. For WebDAV, enter the endpoint path in WebDAV path; Basic authentication and ETag-conditional replacement are supported. For S3, enter the access key ID as user name and the secret access key as password, plus an optional session token. Set the endpoint, region and initial `/bucket` path; `/` lists all buckets.
 
 The application keeps its own host-key store and site settings in `~/Library/Application Support/WinSCPMac/`. It deliberately disables SSH config loading (`-F /dev/null`), forwarding, and local commands. ProxyJump, user SSH config aliases, SSH tunnels, PuTTY `.ppk` keys, and imported WinSCP password blobs are not currently supported. A changed trusted host key fails verification; there is no automatic reset or insecure bypass.
 
@@ -53,7 +54,7 @@ Select local files and choose **Upload** (`⌘⇧U`), or select remote files and
 
 `./scripts/test-ssh.sh` additionally generates disposable SSH keys, starts unprivileged daemons listening only on `127.0.0.1`, verifies actual SFTP and legacy SCP round trips, and confirms rejection of an untrusted host key. The SCP daemon has no SFTP subsystem, so these tests also demonstrate that SCP does not fall back to SFTP. It removes its keys and stops both daemons on exit. This requires permission to open a localhost port; it does not change your SSH configuration or require Remote Login to be enabled.
 
-For the complete SFTP + SCP + FTP + FTPS + WebDAV suite, install the isolated **test-only** dependencies using Python 3.11+, then run both server fixtures together:
+For the complete SFTP + SCP + FTP + FTPS + WebDAV + S3 suite, install the isolated **test-only** dependencies using Python 3.11+, start Docker (for the S3 MinIO fixture), then run all server fixtures together:
 
 ```sh
 ./scripts/setup-protocol-tests.sh
@@ -62,7 +63,7 @@ For the complete SFTP + SCP + FTP + FTPS + WebDAV suite, install the isolated **
 ./scripts/test-ssh.sh --all -c release
 ```
 
-The application has no Python dependency. The FTP fixture uses independent pyftpdlib servers and generated certificates in a disposable localhost directory. It covers plain FTP, both FTPS modes, legacy/sparse listings, wrong credentials, permission errors, cancellation, file integrity, timestamps, replacement conflicts, symlink deletion, untrusted certificates, hostname mismatch, and rejection of TLS downgrade. `./scripts/test-ftp.sh` runs this fixture separately; network fixtures are explicitly skipped when unavailable during the offline test command. `./scripts/test-webdav.sh` uses an independent WsgiDAV/Cheroot HTTP/HTTPS fixture with real transfers, conditional MOVE, generated certificates, authentication/read-only errors, cancellation, redirect protection, and partial-status handling. [WebDAV limits](docs/WEBDAV.md) include destination `?`/`;` refusal, no POSIX chmod/upload mtime preservation, and strong ETags being required for replacement.
+The application has no Python dependency. The FTP fixture uses independent pyftpdlib servers and generated certificates in a disposable localhost directory. It covers plain FTP, both FTPS modes, legacy/sparse listings, wrong credentials, permission errors, cancellation, file integrity, timestamps, replacement conflicts, symlink deletion, untrusted certificates, hostname mismatch, and rejection of TLS downgrade. `./scripts/test-ftp.sh` runs this fixture separately; network fixtures are explicitly skipped when unavailable during the offline test command. `./scripts/test-webdav.sh` uses an independent WsgiDAV/Cheroot HTTP/HTTPS fixture with real transfers, conditional MOVE, generated certificates, authentication/read-only errors, cancellation, redirect protection, and partial-status handling. [WebDAV limits](docs/WEBDAV.md) include destination `?`/`;` refusal, no POSIX chmod/upload mtime preservation, and strong ETags being required for replacement. `./scripts/test-s3.sh` starts two disposable, localhost-only MinIO containers (HTTP and HTTPS with a generated CA) from a digest-pinned image. It covers transfers, multipart uploads, conditional writes, rename, cancellation and abort cleanup, read-only and wrong-credential errors, and TLS trust. `WINSCP_SKIP_S3=1` explicitly skips S3 where Docker is unavailable.
 
 See [verification results](docs/VERIFICATION.md), [architecture](docs/ARCHITECTURE.md), [feature parity](docs/PARITY.md), and [contributing](CONTRIBUTING.md). [Türkçe](README.tr.md).
 

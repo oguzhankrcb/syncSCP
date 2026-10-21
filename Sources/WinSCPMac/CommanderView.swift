@@ -204,7 +204,7 @@ struct CommanderView: View {
                 Image(systemName: model.currentSite?.transferProtocol.isEncrypted == true ? "lock.fill" : "exclamationmark.triangle")
                 Text(model.currentSite?.transferProtocol.usesSSH == true ? "SSH encrypted" : model.currentSite?.transferProtocol.isEncrypted != true ? "Unencrypted \(model.currentSite?.transferProtocol.shortTitle ?? "")" : "TLS encrypted")
             }
-            Text("Development preview · 0.4.0").padding(.leading, 14)
+            Text("Development preview · 0.5.0").padding(.leading, 14)
         }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 18).padding(.vertical, 7)
     }
 }
@@ -303,7 +303,7 @@ struct FilePane: View {
                     Divider()
                     Button("Rename…") { model.activeSide = side; selection.wrappedValue = ids; model.promptRename() }.disabled(ids.count != 1 || model.busy)
                     if !local {
-                        Button("Permissions…") { model.activeSide = side; selection.wrappedValue = ids; model.promptPermissions() }.disabled(ids.count != 1 || model.busy || model.currentSite?.transferProtocol.usesWebDAV == true)
+                        Button("Permissions…") { model.activeSide = side; selection.wrappedValue = ids; model.promptPermissions() }.disabled(ids.count != 1 || model.busy || model.currentSite?.transferProtocol.supportsPermissions == false)
                     }
                     Button(local ? "Move to Trash…" : "Delete…") { model.activeSide = side; selection.wrappedValue = ids; model.deleteSelected() }.disabled(ids.isEmpty || model.busy)
                 } primaryAction: { ids in
@@ -335,7 +335,7 @@ struct FilePane: View {
             }
             VStack(spacing: 7) {
                 Text("Your server, beside your files").font(.system(size: 18, weight: .medium))
-                Text("Connect over SFTP, SCP, FTP, FTPS, or WebDAV to manage your files.\nSSH keys, SSH agent, and password authentication.")
+                Text("Connect over SFTP, SCP, FTP, FTPS, WebDAV, or S3 to manage your files.\nSSH keys, SSH agent, password, and S3 access-key authentication.")
                     .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center).lineSpacing(4)
             }
             Button { model.showConnection = true } label: { Label("New Session", systemImage: "plus") }

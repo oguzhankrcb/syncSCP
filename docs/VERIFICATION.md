@@ -1,5 +1,40 @@
 # Verification record
 
+## 0.5.0 — S3 over HTTP/HTTPS
+
+Verified locally on 2026-10-21 with Swift 6.2, macOS's system libcurl and CryptoKit. The independent fixture is MinIO `DEVELOPMENT.2025-07-23T15-54-02Z` from the digest-pinned `bitnamilegacy/minio:2025.7.23` image under Docker 27.3.1. Official community MinIO images are no longer published. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **87 XCTest cases, zero failures, zero skips** on the final source, with no compiler warnings. Both runs removed their containers.
+
+The 6 S3 unit tests cover:
+
+- SigV4 signatures matching three AWS-published examples, and canonical query/key encoding.
+- Virtual-hosted and path-style addressing, including IP, localhost, IPv6, non-DNS and dotted-bucket rules.
+- Path/key mapping and the 1024-byte key limit.
+- Backward-compatible site decoding, with no secret in saved JSON, and region/access-key validation.
+- URL-encoded listings, pagination tokens, out-of-scope and DTD rejection.
+- Hidden unaddressable keys, folder-over-object precedence, and bucket and error documents.
+
+The 9 integration tests use separate HTTP and HTTPS MinIO servers with a generated CA. They cover:
+
+- Binary and empty round trips on both servers, and bucket listing.
+- Unicode and URL-metacharacter names, folder markers, mkdir/rename/delete rules, refused bucket operations, and missing paths.
+- No-clobber and approved replacement, with a destination created or replaced after the client's checks. The server condition rejected each write and the other version was kept.
+- A 3-part multipart round trip; cancellation and conditional failure with no remaining multipart uploads.
+- Cancellation and same-size local changes during upload. The server rejected the mismatched signed payload and the old object was kept.
+- Download cancellation.
+- Server-side-copy rename that keeps Content-Type and user metadata, including onto an existing object and for an empty object.
+- Backslash and control-character keys: hidden from listings, but deleted exactly by recursive delete.
+- Paginated listings.
+- Untrusted CA, hostname mismatch, wrong secret, wrong region, empty secret, and a list/read-only account refused on upload, delete and mkdir.
+
+Before implementation, MinIO's behavior was probed directly:
+
+- It enforces `If-None-Match`/`If-Match` on PUT and on CompleteMultipartUpload.
+- It ignores them on CopyObject and DELETE. This is why rename uses multipart copy with a conditional completion, and why the source delete is documented as unconditional.
+- It locks an object for the whole PUT, so race tests inject changes after the client's checks rather than mid-stream.
+- It rejects keys with empty or dot segments.
+
+`./scripts/package-release.sh` built the universal 0.5.0 app (arm64 and x86_64) and verified ZIPs; strict ad-hoc codesign verification passed. The packaged app launched and quit normally. **The S3 login sheet and transfers were not exercised through the native UI in this session.** AWS S3 and other providers, virtual-hosted addressing on real DNS, STS tokens against a real service, region redirects, very large or slow transfers, older macOS and physical Intel hardware remain untested. GitHub-hosted CI has no Docker and therefore sets `WINSCP_SKIP_S3=1`; S3 is verified only where Docker runs. Limits are in [S3.md](S3.md).
+
 ## 0.4.0 — WebDAV over HTTP/HTTPS
 
 Verified locally on 2026-10-21 with Swift 6.2, macOS's system libcurl, and independent WsgiDAV 4.3.5 / Cheroot 11.1.2 fixtures. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **72 XCTest cases, zero failures, zero skips** on the final source, with no compiler warnings.

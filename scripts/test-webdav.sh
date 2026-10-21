@@ -26,6 +26,9 @@ if [ "${1:-}" = "--serve" ]; then
     cat "$TASK_FIXTURE/ready.json"
     printf '\nTest account: winscp / test-only-password\nWebDAV path: /dav\nCA file: %s/ca.pem\nStop with Ctrl-C to remove this fixture.\n' "$TASK_FIXTURE"
     wait "$WEBDAV_SERVER_PID"
+elif [ "${1:-}" = "--with-s3" ]; then
+    shift
+    "$TASK_ROOT/scripts/test-s3.sh" "$@"
 else
     "$TASK_ROOT/scripts/swift.sh" test "$@"
 fi

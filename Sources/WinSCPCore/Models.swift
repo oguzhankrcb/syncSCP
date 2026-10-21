@@ -18,16 +18,19 @@ public enum ClientError: LocalizedError, Equatable {
 }
 
 public enum TransferProtocol: String, Codable, CaseIterable, Sendable {
-    case sftp, scp, ftp, ftpsExplicit, ftpsImplicit, webdav, webdavs
+    case sftp, scp, ftp, ftpsExplicit, ftpsImplicit, webdav, webdavs, s3, s3http
     public var title: String {
-        switch self { case .sftp: return "SFTP"; case .scp: return "SCP"; case .ftp: return "FTP"; case .ftpsExplicit: return "FTPS · Explicit TLS"; case .ftpsImplicit: return "FTPS · Implicit TLS"; case .webdav: return "WebDAV · HTTP"; case .webdavs: return "WebDAV · HTTPS" }
+        switch self { case .sftp: return "SFTP"; case .scp: return "SCP"; case .ftp: return "FTP"; case .ftpsExplicit: return "FTPS · Explicit TLS"; case .ftpsImplicit: return "FTPS · Implicit TLS"; case .webdav: return "WebDAV · HTTP"; case .webdavs: return "WebDAV · HTTPS"; case .s3: return "S3 · HTTPS"; case .s3http: return "S3 · HTTP" }
     }
-    public var shortTitle: String { usesSSH ? title : usesWebDAV ? (isEncrypted ? "WebDAVS" : "WebDAV") : self == .ftp ? "FTP" : "FTPS" }
+    public var shortTitle: String { usesSSH ? title : usesS3 ? "S3" : usesWebDAV ? (isEncrypted ? "WebDAVS" : "WebDAV") : self == .ftp ? "FTP" : "FTPS" }
     public var usesWebDAV: Bool { self == .webdav || self == .webdavs }
+    public var usesS3: Bool { self == .s3 || self == .s3http }
+    /// Whether the protocol has a POSIX permission model the UI may edit.
+    public var supportsPermissions: Bool { !usesWebDAV && !usesS3 }
     public var usesFTP: Bool { self == .ftp || self == .ftpsExplicit || self == .ftpsImplicit }
     public var usesSSH: Bool { self == .sftp || self == .scp }
-    public var defaultPort: Int { usesSSH ? 22 : usesWebDAV ? (isEncrypted ? 443 : 80) : self == .ftpsImplicit ? 990 : 21 }
-    public var isEncrypted: Bool { self != .ftp && self != .webdav }
+    public var defaultPort: Int { usesSSH ? 22 : usesWebDAV || usesS3 ? (isEncrypted ? 443 : 80) : self == .ftpsImplicit ? 990 : 21 }
+    public var isEncrypted: Bool { self != .ftp && self != .webdav && self != .s3http }
 }
 
 public struct Site: Codable, Identifiable, Equatable, Sendable {
@@ -41,17 +44,23 @@ public struct Site: Codable, Identifiable, Equatable, Sendable {
     public var localPath: String
     public var transferProtocol: TransferProtocol
     public var certificateAuthorityFile: String
+    /// S3 signing region; empty means us-east-1.
+    public var s3Region: String
+    /// Path-style S3 URLs (`host/bucket/key`) instead of virtual-hosted (`bucket.host/key`).
+    public var s3PathStyle: Bool
 
     public init(id: UUID = UUID(), name: String = "", host: String = "", port: Int? = nil,
                 username: String = NSUserName(), privateKey: String = "", remotePath: String = ".",
                 localPath: String = FileManager.default.homeDirectoryForCurrentUser.path,
-                transferProtocol: TransferProtocol = .sftp, certificateAuthorityFile: String = "") {
+                transferProtocol: TransferProtocol = .sftp, certificateAuthorityFile: String = "",
+                s3Region: String = "", s3PathStyle: Bool = false) {
         self.id = id; self.name = name; self.host = host; self.port = port ?? transferProtocol.defaultPort
         self.username = username; self.privateKey = privateKey; self.remotePath = remotePath; self.localPath = localPath
         self.transferProtocol = transferProtocol; self.certificateAuthorityFile = certificateAuthorityFile
+        self.s3Region = s3Region; self.s3PathStyle = s3PathStyle
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, host, port, username, privateKey, remotePath, localPath, transferProtocol, certificateAuthorityFile }
+    private enum CodingKeys: String, CodingKey { case id, name, host, port, username, privateKey, remotePath, localPath, transferProtocol, certificateAuthorityFile, s3Region, s3PathStyle }
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         id = try values.decode(UUID.self, forKey: .id); name = try values.decode(String.self, forKey: .name)
@@ -60,6 +69,8 @@ public struct Site: Codable, Identifiable, Equatable, Sendable {
         remotePath = try values.decode(String.self, forKey: .remotePath); localPath = try values.decode(String.self, forKey: .localPath)
         transferProtocol = try values.decodeIfPresent(TransferProtocol.self, forKey: .transferProtocol) ?? .sftp
         certificateAuthorityFile = try values.decodeIfPresent(String.self, forKey: .certificateAuthorityFile) ?? ""
+        s3Region = try values.decodeIfPresent(String.self, forKey: .s3Region) ?? ""
+        s3PathStyle = try values.decodeIfPresent(Bool.self, forKey: .s3PathStyle) ?? false
     }
 
     public var displayName: String { name.isEmpty ? "\(username)@\(host)" : name }
@@ -74,8 +85,14 @@ public struct Site: Codable, Identifiable, Equatable, Sendable {
             throw ClientError.invalid("The private key file does not exist.")
         }
         if !transferProtocol.usesSSH {
-            if transferProtocol.usesWebDAV { _ = try DAVPath.normalize(remotePath) }
+            if transferProtocol.usesWebDAV || transferProtocol.usesS3 { _ = try DAVPath.normalize(remotePath) }
             else { try FTPPath.validate(remotePath) }
+            if transferProtocol.usesS3 {
+                guard username.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { throw ClientError.invalid("Enter a valid S3 access key ID.") }
+                guard s3Region.utf8.count <= 64, s3Region.utf8.allSatisfy({ (97...122).contains($0) || (48...57).contains($0) || $0 == 45 }) else {
+                    throw ClientError.invalid("Enter an S3 region such as us-east-1, using lowercase letters, digits and hyphens.")
+                }
+            }
             if transferProtocol.usesWebDAV, username.contains(":") { throw ClientError.invalid("WebDAV Basic authentication usernames cannot contain a colon.") }
             if transferProtocol.isEncrypted, !certificateAuthorityFile.isEmpty, !FileManager.default.fileExists(atPath: (certificateAuthorityFile as NSString).expandingTildeInPath) {
                 throw ClientError.invalid("The certificate authority file does not exist.")

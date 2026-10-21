@@ -146,6 +146,7 @@ typedef struct {
     WSCurlRequest body_request;
     const WSHTTPRequest *request;
     WSHTTPResult *result;
+    int64_t sent;
 } HTTPTransfer;
 
 static size_t receive_headers(char *buffer, size_t size, size_t count, void *opaque) {
@@ -186,6 +187,26 @@ static int seek_body(void *opaque, curl_off_t offset, int origin) {
     Transfer *transfer = opaque;
     return lseek(transfer->request->file_descriptor, offset, origin) == -1 ? CURL_SEEKFUNC_FAIL : CURL_SEEKFUNC_OK;
 }
+/* Ranged uploads never depend on the descriptor's offset and stop exactly at upload_size. */
+static size_t send_range(char *buffer, size_t size, size_t count, void *opaque) {
+    HTTPTransfer *http = opaque;
+    if (size && count > SIZE_MAX / size) return CURL_READFUNC_ABORT;
+    int64_t remaining = http->request->upload_size - http->sent;
+    if (remaining <= 0) return 0;
+    size_t wanted = size * count;
+    if ((uint64_t)wanted > (uint64_t)remaining) wanted = (size_t)remaining;
+    ssize_t n;
+    do { n = pread(http->request->file_descriptor, buffer, wanted, (off_t)(http->request->upload_offset + http->sent)); } while (n < 0 && errno == EINTR);
+    if (n <= 0) { http->result->response.local_errno = n < 0 ? errno : EIO; return CURL_READFUNC_ABORT; }
+    http->sent += n;
+    return (size_t)n;
+}
+static int seek_range(void *opaque, curl_off_t offset, int origin) {
+    HTTPTransfer *http = opaque;
+    if (origin != SEEK_SET || offset < 0 || offset > http->request->upload_size) return CURL_SEEKFUNC_FAIL;
+    http->sent = offset;
+    return CURL_SEEKFUNC_OK;
+}
 void ws_http_result_free(WSHTTPResult *result) {
     ws_curl_result_free(&result->response); free(result->headers); result->headers = NULL; result->headers_size = 0;
 }
@@ -204,9 +225,13 @@ void ws_http_perform(WSCurlSession *session, const WSHTTPRequest *request,
 #define SET(option, value) do { code = curl_easy_setopt(easy, option, value); if (code != CURLE_OK) goto finish_http; } while (0)
     SET(CURLOPT_ERRORBUFFER, result->response.error);
     SET(CURLOPT_URL, request->url);
+    /* Callers send exact, already-encoded paths; never collapse "/./" or "/../" in object keys. */
+    SET(CURLOPT_PATH_AS_IS, 1L);
     SET(CURLOPT_PROTOCOLS, (long)(request->use_tls ? CURLPROTO_HTTPS : CURLPROTO_HTTP));
-    SET(CURLOPT_USERNAME, request->username); SET(CURLOPT_PASSWORD, request->password);
-    SET(CURLOPT_HTTPAUTH, (long)CURLAUTH_BASIC);
+    if (request->basic_auth) {
+        SET(CURLOPT_USERNAME, request->username); SET(CURLOPT_PASSWORD, request->password);
+        SET(CURLOPT_HTTPAUTH, (long)CURLAUTH_BASIC);
+    }
     SET(CURLOPT_PROXY, ""); SET(CURLOPT_NETRC, (long)CURL_NETRC_IGNORED);
     SET(CURLOPT_FOLLOWLOCATION, 0L); SET(CURLOPT_UNRESTRICTED_AUTH, 0L);
     SET(CURLOPT_NOSIGNAL, 1L); SET(CURLOPT_CONNECTTIMEOUT, 15L);
@@ -219,7 +244,12 @@ void ws_http_perform(WSCurlSession *session, const WSHTTPRequest *request,
     SET(CURLOPT_HEADERFUNCTION, receive_headers); SET(CURLOPT_HEADERDATA, &http);
     SET(CURLOPT_XFERINFOFUNCTION, http_progress); SET(CURLOPT_XFERINFODATA, &http);
     SET(CURLOPT_NOPROGRESS, 0L);
-    if (request->operation == 2) {
+    if (request->operation == 2 && request->ranged_upload) {
+        SET(CURLOPT_UPLOAD, 1L);
+        SET(CURLOPT_READFUNCTION, send_range); SET(CURLOPT_READDATA, &http);
+        SET(CURLOPT_SEEKFUNCTION, seek_range); SET(CURLOPT_SEEKDATA, &http);
+        SET(CURLOPT_INFILESIZE_LARGE, (curl_off_t)request->upload_size);
+    } else if (request->operation == 2) {
         SET(CURLOPT_UPLOAD, 1L);
         SET(CURLOPT_READFUNCTION, send_body); SET(CURLOPT_READDATA, &http.transfer);
         SET(CURLOPT_SEEKFUNCTION, seek_body); SET(CURLOPT_SEEKDATA, &http.transfer);
@@ -229,6 +259,8 @@ void ws_http_perform(WSCurlSession *session, const WSHTTPRequest *request,
         SET(CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)request->body_size);
     }
     SET(CURLOPT_CUSTOMREQUEST, request->method);
+    /* HEAD responses advertise a body length that never follows. */
+    if (!strcmp(request->method, "HEAD")) SET(CURLOPT_NOBODY, 1L);
     for (size_t i = 0; i < request->header_count; i++) {
         struct curl_slist *next = curl_slist_append(headers, request->headers[i]);
         if (!next) { code = CURLE_OUT_OF_MEMORY; goto finish_http; }

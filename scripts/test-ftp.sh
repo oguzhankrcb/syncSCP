@@ -28,7 +28,7 @@ if [ "${1:-}" = "--serve" ]; then
     wait "$FTP_SERVER_PID"
 elif [ "${1:-}" = "--with-webdav" ]; then
     shift
-    "$TASK_ROOT/scripts/test-webdav.sh" "$@"
+    "$TASK_ROOT/scripts/test-webdav.sh" --with-s3 "$@"
 else
     "$TASK_ROOT/scripts/swift.sh" test "$@"
 fi

@@ -73,7 +73,7 @@ final class CommanderModel: ObservableObject {
         do { let store = try SiteStore(); self.store = store; sites = try store.load() }
         catch { self.error = error.localizedDescription }
         refreshLocal()
-        appendLog("WinSCP for macOS 0.4.0 · Community development preview")
+        appendLog("WinSCP for macOS 0.5.0 · Community development preview")
     }
 
     func appendLog(_ text: String, error: Bool = false) {
@@ -111,7 +111,8 @@ final class CommanderModel: ObservableObject {
         catch { report(error) }
     }
 
-    func connect(site: Site, password: String) {
+    /// For S3, `password` is the secret access key and `sessionToken` optional temporary credentials; neither is saved.
+    func connect(site: Site, password: String, sessionToken: String = "") {
         guard !busy else { return }
         connecting = true; status = "Connecting to \(site.host)…"
         Task {
@@ -141,13 +142,13 @@ final class CommanderModel: ObservableObject {
                                                      askpassExecutable: Bundle.main.executablePath ?? CommandLine.arguments[0], credentialID: credential)
                 }
                 await client.disconnect(); connected = false
-                let home = try await client.connect(site: site, password: password, sshConfiguration: configuration)
+                let home = try await client.connect(site: site, password: password, sshConfiguration: configuration, s3SessionToken: sessionToken)
                 let path = site.remotePath.isEmpty || site.remotePath == "." ? home : try await client.realpath(site.remotePath)
                 let entries = try await client.list(path)
                 sessionID = UUID(); currentSite = site; remotePath = path; remoteEntries = entries
                 remoteSelection = []; connected = true; showConnection = false; status = "Connected to \(site.host)"
                 if FileManager.default.fileExists(atPath: site.localPath) { navigateLocal(site.localPath) }
-                let security = site.transferProtocol.usesSSH ? "Host key verified by OpenSSH." : !site.transferProtocol.isEncrypted ? "Unencrypted \(site.transferProtocol.shortTitle) connection." : "Server certificate and hostname verified; TLS required."
+                let security = site.transferProtocol.usesSSH ? "Host key verified by OpenSSH." : site.transferProtocol == .s3http ? "Unencrypted S3 connection; requests are signed with SigV4." : !site.transferProtocol.isEncrypted ? "Unencrypted \(site.transferProtocol.shortTitle) connection." : "Server certificate and hostname verified; TLS required."
                 appendLog("Connected to \(site.username)@\(site.host):\(site.port) using \(site.transferProtocol.title). \(security)")
             } catch { await client.disconnect(); connected = false; remoteEntries = []; remotePath = ""; currentSite = nil; report(error) }
         }
@@ -331,7 +332,7 @@ final class CommanderModel: ObservableObject {
     }
 
     func promptPermissions() {
-        guard !busy, activeSide == .remote, currentSite?.transferProtocol.usesWebDAV != true, let entry = activeSelection.first else { return }
+        guard !busy, activeSide == .remote, currentSite?.transferProtocol.supportsPermissions != false, let entry = activeSelection.first else { return }
         guard let value = prompt(title: "Permissions for \(entry.name) (octal)", value: entry.permissionsKnown ? String(entry.permissions & 0o7777, radix: 8) : "") else { return }
         guard let mode = UInt32(value, radix: 8), mode <= 0o7777 else { report(ClientError.invalid("Enter an octal mode such as 644 or 755.")); return }
         perform { try await self.client.chmod(entry.path, mode: mode) }
