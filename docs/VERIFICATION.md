@@ -1,5 +1,16 @@
 # Verification record
 
+## 0.10.0 — Persistent SCP shell, ".." row, clickable path
+
+Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **107 XCTest cases, zero failures, zero skips**. Integration tests on the SCP-only daemon show:
+
+- The configured shell (a `sudo su -` stand-in that prints a banner and changes to another home) starts once for the whole session. The session's home is the shell's directory, so the commands really ran inside it.
+- Only the two transfer streams start further shells. mkdir, rename, list, a failed stat, recursive delete and exists all reuse the persistent shell.
+- With a shell that takes 0.5 s to start, 20 realpath/list commands complete in under 3 s, using a single shell start. The previous per-command design needed at least 10 s.
+- The control-socket test was tightened. After the socket disappears, the existing authenticated shell may continue; a new transfer channel fails; and after a cancellation closes the shell, the next command fails instead of re-authenticating.
+
+The ".." row and the breadcrumb strip were rendered offscreen. The ".." row is first, unsorted, and excluded from every selection action and drag. The app was packaged, codesign-verified, and launched and quit normally. **The speed-up was not measured against the user's real servers**, and the new UI was not clicked through interactively. GNU stat listings still start one `stat` process per entry on the server.
+
 ## 0.9.0 — Drag and drop, Commander keys, remembered folders
 
 Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **106 XCTest cases, zero failures, zero skips**. A first debug attempt exited with code 1 before running any test and left an empty log; the rerun passed, and the cause was not identified. A headless harness checked the drag payloads:

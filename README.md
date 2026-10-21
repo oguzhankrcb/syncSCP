@@ -2,7 +2,7 @@
 
 A native macOS implementation of WinSCP's Commander workflow, built with SwiftUI, AppKit, and macOS's OpenSSH and libcurl. Free software under **GPL-3.0-or-later**.
 
-**Status: 0.9.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
+**Status: 0.10.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
 
 ## Build and run
 
@@ -27,6 +27,7 @@ For a development build, use `./scripts/build-app.sh --debug`. For an Apple Sili
   - a highlighted path strip on the active pane, local Name/Size/Type/Changed and remote Name/Size/Changed/Rights columns, and WinSCP's "0 B of 34.9 MB in 0 of 40" footer;
   - a Queue/Log panel and a status bar with the verification state, shell/tunnel/proxy and connection time;
   - multiple selection, sorting, hidden files and filtering.
+- WinSCP's ".." row and a clickable path strip (every part of the path opens that folder).
 - Drag and drop: local items onto the remote pane (or Finder files onto it) upload, remote items onto the local pane download, through the same queue and replacement prompts. WinSCP's Commander keys under Files ▸ Commander Keys (F2 rename, F4 edit, F5 copy to the other panel, F7 new folder, F8 delete) and a Go menu (⌘[ back, ⌘] forward, ⌘↑ parent, ⌘⇧H home, ⌃⇥ switch panel).
 - WinSCP-style Login: sites grouped by folder (`Folder/Name`), site search, separate file protocol and encryption choices, explicit Save / Save As… and Manage.
 - Real SFTP v3 over `/usr/bin/ssh`, with explicit first-use host fingerprint approval and strict verification on subsequent connections.

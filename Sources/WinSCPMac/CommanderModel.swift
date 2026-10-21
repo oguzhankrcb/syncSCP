@@ -66,8 +66,9 @@ final class CommanderModel: ObservableObject {
     private(set) var store: SiteStore?
 
     var busy: Bool { connecting || operationBusy || runningQueue }
-    var canUpload: Bool { connected && !busy && !localSelection.isEmpty }
-    var canDownload: Bool { connected && !busy && !remoteSelection.isEmpty }
+    // The ".." row can be selected for navigation but is never part of an action.
+    var canUpload: Bool { connected && !busy && !localSelection.subtracting([ParentRow.id]).isEmpty }
+    var canDownload: Bool { connected && !busy && !remoteSelection.subtracting([ParentRow.id]).isEmpty }
     var activeSelection: [FileEntry] {
         let entries = activeSide == .local ? localEntries : remoteEntries
         let selection = activeSide == .local ? localSelection : remoteSelection
@@ -79,7 +80,7 @@ final class CommanderModel: ObservableObject {
         do { let store = try SiteStore(); self.store = store; sites = try store.load() }
         catch { self.error = error.localizedDescription }
         refreshLocal()
-        appendLog("WinSCP for macOS 0.9.0 · Community development preview")
+        appendLog("WinSCP for macOS 0.10.0 · Community development preview")
     }
 
     func appendLog(_ text: String, error: Bool = false) {

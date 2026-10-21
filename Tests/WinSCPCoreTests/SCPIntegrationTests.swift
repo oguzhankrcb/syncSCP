@@ -211,6 +211,14 @@ final class SCPIntegrationTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(started), 3)
         XCTAssertEqual(try session.run("printf usable"), Data("usable".utf8))
         try FileManager.default.removeItem(atPath: session.controlPath)
+        // The already-authenticated persistent shell may continue; no new channel may authenticate.
+        XCTAssertEqual(try session.run("printf existing"), Data("existing".utf8))
+        let transfer = try session.open("printf unexpected")
+        defer { transfer.close() }
+        do { _ = try transfer.finish(); XCTFail("Opened a new channel after control socket loss") } catch ClientError.connection { }
+        let stop = CancellationToken()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.15) { stop.cancel() }
+        do { _ = try session.run("sleep 10", token: stop); XCTFail("Stalled command ignored cancellation") } catch ClientError.cancelled { }
         do { _ = try session.run("printf unexpected"); XCTFail("Reauthenticated after control socket loss") } catch ClientError.connection { }
     }
 }

@@ -57,24 +57,46 @@ final class AdvancedSettingsIntegrationTests: XCTestCase {
     }
 
     func testSCPShellRunsEveryOperationInsideTheConfiguredShell() async throws {
+        // Like `sudo su -`: prints a banner, switches to another home, then reads commands from stdin.
+        let home = root.appendingPathComponent("fake root home")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: false)
         let shell = try script("fake-sudo-shell", """
         echo 'Last login: banner printed by the login shell'
-        echo 'Message of the day with WINSCP-READY- lookalike text'
+        echo 'Message of the day with WINSCP-END- and WINSCP-READY- lookalike text'
         echo started >> $LOG
+        cd '\(home.path)' || exit 1
         exec /bin/sh
         """)
         var settings = SiteSettings(); settings.shell = shell.path
-        try await connect(site(.scp, port: scpPort, settings: settings))
-        let afterConnect = starts(shell.log)
-        XCTAssertGreaterThanOrEqual(afterConnect, 2, "connection probes must run inside the shell")
+        let site = site(.scp, port: scpPort, settings: settings)
+        let connectedHome = try await client.connect(site: site, password: "", sshConfiguration: SSHConfiguration(site: site, knownHostsFile: fixture.appendingPathComponent("known hosts").path))
+        XCTAssertEqual(URL(fileURLWithPath: connectedHome).resolvingSymlinksInPath().path, home.resolvingSymlinksInPath().path, "commands must run inside the configured shell")
+        XCTAssertEqual(starts(shell.log), 1, "connection probes share one persistent shell")
         try await roundTrip("through shell.bin")
+        XCTAssertEqual(starts(shell.log), 3, "each scp -t/-f transfer stream starts its own shell")
         try await client.mkdir(remote.appendingPathComponent("made in shell").path)
         try await client.rename(remote.appendingPathComponent("through shell.bin").path, to: remote.appendingPathComponent("made in shell/moved.bin").path)
         let listed = try await client.list(remote.appendingPathComponent("made in shell").path)
         XCTAssertEqual(listed.map(\.name), ["moved.bin"])
+        do { _ = try await client.stat(remote.appendingPathComponent("missing").path); XCTFail("Stat invented a file") } catch ClientError.remote { }
         try await client.remove(remote.appendingPathComponent("made in shell").path, recursive: true)
         let exists = try await client.exists(remote.appendingPathComponent("made in shell").path); XCTAssertFalse(exists)
-        XCTAssertGreaterThan(starts(shell.log), afterConnect + 6, "every SCP operation must start through the shell")
+        XCTAssertEqual(starts(shell.log), 3, "metadata and file operations reuse the persistent shell, also after a failed command")
+    }
+
+    func testSlowShellStartIsPaidOnceLikeWinSCP() async throws {
+        let shell = try script("slow-sudo-shell", "echo started >> $LOG\nsleep 0.5\nexec /bin/sh\n")
+        var settings = SiteSettings(); settings.shell = shell.path
+        let site = site(.scp, port: scpPort, settings: settings)
+        _ = try await client.connect(site: site, password: "", sshConfiguration: SSHConfiguration(site: site, knownHostsFile: fixture.appendingPathComponent("known hosts").path))
+        let started = Date()
+        for _ in 0..<10 {
+            _ = try await client.realpath(remote.path)
+            _ = try await client.list(remote.path)
+        }
+        // Twenty commands through a per-command shell would take at least 10 s here.
+        XCTAssertLessThan(Date().timeIntervalSince(started), 3)
+        XCTAssertEqual(starts(shell.log), 1)
     }
 
     func testShellThatCannotStartFailsAtLogin() async throws {

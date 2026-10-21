@@ -2,7 +2,7 @@
 
 WinSCP'nin çift panelli Commander iş akışını macOS'a taşımayı hedefleyen, SwiftUI/AppKit tabanlı açık kaynak proje. Lisans: **GPL-3.0-or-later**.
 
-**0.9.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
+**0.10.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
 
 ```sh
 ./scripts/swift.sh test
@@ -58,5 +58,7 @@ Siteler klasörleri ve tüm Advanced ayarlarıyla gelir. Şifresiz PuTTY `.ppk` 
 - uzak öğeleri yerel panele bırakmak indirir
 
 WinSCP Commander tuşları Files ▸ Commander Keys altında (F2 yeniden adlandır, F4 düzenle, F5 diğer panele kopyala, F7 klasör, F8 sil; Mac klavyede fn ile). Go menüsü: ⌘[ geri, ⌘] ileri, ⌘↑ üst klasör, ⌘⇧H ev, ⌃⇥ panel değiştir. "Remember last used directory" ayarı artık uygulanıyor.
+
+0.10.0 ile SCP'de klasör açmak çok daha hızlı. WinSCP gibi tek bir kalıcı shell (örneğin `sudo su -`) açılıyor ve bütün komutlar ona gönderiliyor; eskiden her komut yeni bir SSH kanalı ve yeni bir shell açıyordu. Listelerin başında ".." satırı var. Yol şeridindeki her parçaya tıklayınca o klasöre gidiliyor.
 
 Tam WinSCP betik uyumluluğu, tünelleme, aktarımı kaldığı yerden sürdürme ve tam özellik eşitliği henüz yoktur. Ayrıntılar: [özellik tablosu](docs/PARITY.md), [İngilizce kullanım ve mimari](README.md).

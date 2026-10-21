@@ -132,7 +132,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.9.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.10.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)
@@ -364,7 +364,8 @@ struct FilePane: View {
     }
 
     private var actionBar: some View {
-        let one = selection.wrappedValue.count == 1, any = !selection.wrappedValue.isEmpty
+        let chosen = selection.wrappedValue.subtracting([ParentRow.id])
+        let one = chosen.count == 1, any = !chosen.isEmpty
         let selected = allEntries.filter { selection.wrappedValue.contains($0.id) }
         return HStack(spacing: 0) {
             if local {
@@ -392,21 +393,49 @@ struct FilePane: View {
         .padding(.horizontal, 4).frame(height: 32).disabled(!usable)
     }
 
+    /// Every part of the path is a link to that folder; long paths scroll to keep the end visible.
     private var pathStrip: some View {
-        Text(path.isEmpty ? (local ? "" : "Not connected") : path)
-            .font(.system(size: 12, weight: active ? .semibold : .regular, design: .monospaced))
-            .lineLimit(1).truncationMode(.head).textSelection(.enabled)
-            .foregroundStyle(active ? Color.white : Color.secondary)
-            .padding(.horizontal, 12).frame(maxWidth: .infinity, minHeight: 25, alignment: .leading)
-            .background(active ? accent : Color.primary.opacity(0.05))
+        let parts = path.split(separator: "/").map(String.init)
+        let color = active ? Color.white : Color.secondary
+        return ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    if path.isEmpty {
+                        Text(local ? "" : "Not connected").foregroundStyle(color)
+                    } else {
+                        crumb("/", target: "/", current: parts.isEmpty)
+                        ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
+                            if index > 0 { Text("/").foregroundStyle(color.opacity(0.7)) }
+                            crumb(part, target: "/" + parts[...index].joined(separator: "/"), current: index == parts.count - 1)
+                        }
+                    }
+                    Color.clear.frame(width: 1).id("end")
+                }
+                .font(.system(size: 12, weight: active ? .semibold : .regular, design: .monospaced))
+                .padding(.horizontal, 12)
+            }
+            .onAppear { proxy.scrollTo("end", anchor: .trailing) }
+            .onChange(of: path) { _ in proxy.scrollTo("end", anchor: .trailing) }
+        }
+        .frame(maxWidth: .infinity, minHeight: 25, maxHeight: 25)
+        .background(active ? accent : Color.primary.opacity(0.05))
+    }
+
+    private func crumb(_ title: String, target: String, current: Bool) -> some View {
+        Button { navigate(target) } label: {
+            Text(title).foregroundStyle(active ? Color.white : current ? Color.primary : Color.secondary)
+        }
+        .buttonStyle(.plain).disabled(!usable || (!local && model.busy))
+        .onHover { inside in if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() } }
+        .help(current ? "Refresh \(target)" : "Go to \(target)").accessibilityLabel("Go to \(target)")
     }
 
     private var nameColumn: TableColumn<FileEntry, KeyPathComparator<FileEntry>, some View, Text> {
         TableColumn("Name", value: \.name) { entry in
             HStack(spacing: 7) {
-                Image(systemName: entry.isDirectory ? "folder.fill" : entry.isSymbolicLink ? "link" : "doc")
+                Image(systemName: entry.path == ParentRow.id ? "arrow.turn.left.up" : entry.isDirectory ? "folder.fill" : entry.isSymbolicLink ? "link" : "doc")
                     .foregroundStyle(entry.isDirectory ? accent.opacity(0.85) : .secondary).frame(width: 16)
-                Text(entry.name).lineLimit(1).help(entry.name)
+                Text(entry.name).lineLimit(1).help(entry.path == ParentRow.id ? "Parent folder" : entry.name)
             }
         }
     }
@@ -423,16 +452,22 @@ struct FilePane: View {
         }
     }
 
+    /// WinSCP's ".." row: always first (not sorted), opens the parent folder, never selected for actions.
+    private var rows: [FileEntry] {
+        guard usable, !path.isEmpty, path != "/" else { return entries }
+        return [FileEntry(path: ParentRow.id, name: "..", permissions: 0o040755, permissionsKnown: false)] + entries
+    }
+
     /// Local: Name, Size, Type, Changed. Remote: Name, Size, Changed, Rights — as in WinSCP.
     @ViewBuilder private var fileTable: some View {
         if local {
             decorated(Table(of: FileEntry.self, selection: selection, sortOrder: $sortOrder) {
                 nameColumn.width(min: 160, ideal: 280)
                 sizeColumn.width(min: 60, ideal: 80, max: 110)
-                TableColumn("Type") { entry in Text(FileType.describe(entry)).foregroundStyle(.secondary).lineLimit(1) }.width(min: 70, ideal: 130, max: 190)
+                TableColumn("Type") { entry in Text(entry.path == ParentRow.id ? "" : FileType.describe(entry)).foregroundStyle(.secondary).lineLimit(1) }.width(min: 70, ideal: 130, max: 190)
                 changedColumn.width(min: 110, ideal: 140, max: 170)
             } rows: {
-                ForEach(entries) { entry in TableRow(entry).itemProvider { DragPayload.provider(for: entry, local: true) } }
+                ForEach(rows) { entry in TableRow(entry).itemProvider { entry.path == ParentRow.id ? nil : DragPayload.provider(for: entry, local: true) } }
             })
         } else {
             decorated(Table(of: FileEntry.self, selection: selection, sortOrder: $sortOrder) {
@@ -440,10 +475,10 @@ struct FilePane: View {
                 sizeColumn.width(min: 60, ideal: 80, max: 110)
                 changedColumn.width(min: 110, ideal: 140, max: 170)
                 TableColumn("Rights") { entry in
-                    Text(entry.rights).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                    Text(entry.path == ParentRow.id ? "" : entry.rights).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                 }.width(min: 80, ideal: 90, max: 110)
             } rows: {
-                ForEach(entries) { entry in TableRow(entry).itemProvider { DragPayload.provider(for: entry, local: false) } }
+                ForEach(rows) { entry in TableRow(entry).itemProvider { entry.path == ParentRow.id ? nil : DragPayload.provider(for: entry, local: false) } }
             })
         }
     }
@@ -451,7 +486,8 @@ struct FilePane: View {
     private func decorated<T: View>(_ table: T) -> some View {
         table
         .font(.system(size: 12.5))
-        .contextMenu(forSelectionType: String.self) { ids in
+        .contextMenu(forSelectionType: String.self) { clicked in
+            let ids = clicked.subtracting([ParentRow.id])
             Button(local ? "Open" : "Open / Edit") { if let entry = allEntries.first(where: { ids.contains($0.id) }) { model.open(entry, side: side) } }
                 .disabled(ids.count != 1 || model.busy)
             Button(local ? "Upload" : "Download") { model.activeSide = side; selection.wrappedValue = ids; model.transfer(local ? .upload : .download) }
@@ -465,7 +501,8 @@ struct FilePane: View {
             Button(local ? "Move to Trash…" : "Delete…") { model.activeSide = side; selection.wrappedValue = ids; model.deleteSelected() }
                 .disabled(ids.isEmpty || model.busy)
         } primaryAction: { ids in
-            if let entry = allEntries.first(where: { ids.contains($0.id) }) { model.open(entry, side: side) }
+            if ids.contains(ParentRow.id) { navigate(RemotePath.parent(path)) }
+            else if let entry = allEntries.first(where: { ids.contains($0.id) }) { model.open(entry, side: side) }
         }
         .overlay {
             if entries.isEmpty {
@@ -557,6 +594,11 @@ enum DragPayload {
         }
         group.notify(queue: .main) { let result = items; MainActor.assumeIsolated { deliver(result) } }
     }
+}
+
+enum ParentRow {
+    /// Cannot collide with a real path: paths never contain NUL.
+    static let id = "\u{0}parent"
 }
 
 enum FileType {

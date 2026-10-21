@@ -45,6 +45,28 @@ final class SSHCommandChannel {
     }
 
     func finishInput() { try? input.fileHandleForWriting.close() }
+    /// A long-lived channel may sit idle between commands; the inactivity deadline starts now.
+    func markActive() { lastActivity = Date() }
+    /// Returns and clears stderr collected so far (one command's diagnostics on a persistent shell).
+    func takeErrors() -> String {
+        drainErrors()
+        let text = String(decoding: diagnostics, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        diagnostics.removeAll(); return text
+    }
+    /// Reads up to and consumes `pattern`, returning the bytes before it.
+    func read(until pattern: Data, limit: Int, token: CancellationToken) throws -> Data {
+        var searched = 0
+        while true {
+            let start = buffered.index(buffered.startIndex, offsetBy: max(0, searched - pattern.count + 1))
+            if let range = buffered.range(of: pattern, in: start..<buffered.endIndex) {
+                let result = Data(buffered[buffered.startIndex..<range.lowerBound])
+                buffered.removeSubrange(buffered.startIndex..<range.upperBound); return result
+            }
+            searched = buffered.count
+            guard buffered.count <= limit else { throw ClientError.protocolError("SSH command output exceeds the size limit.") }
+            guard try readMore(token: token) else { throw failure() }
+        }
+    }
 
     private func drainErrors() {
         guard !closed else { return }
@@ -141,6 +163,10 @@ final class SSHCommandChannel {
 
 /// All paths become positional arguments to /bin/sh, never executable shell fragments.
 enum SCPShell {
+    /// The same script as `command`, but run as a child of a persistent shell instead of replacing it.
+    static func inline(_ script: String, arguments: [String] = []) throws -> String {
+        try String(command(script, arguments: arguments).dropFirst("exec ".count))
+    }
     static func quote(_ value: String) throws -> String {
         guard !value.contains("\0") else { throw ClientError.invalid("A remote path cannot contain a null character.") }
         return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
@@ -158,6 +184,9 @@ final class SCPSSHSession {
     private let directory: URL
     private let socket: String
     private var master: SSHCommandChannel?
+    /// WinSCP-style persistent shell: started once (with the configured shell, e.g. `sudo su -`)
+    /// and reused for every metadata and file-management command.
+    private var shell: SSHCommandChannel?
 
     static func masterArguments(_ configuration: SSHConfiguration, socket: String) throws -> [String] {
         // An idle -N master can outlive an app crash. An initial remote cat instead
@@ -186,7 +215,7 @@ final class SCPSSHSession {
     }
     var controlPath: String { socket }
     deinit { close() }
-    func close() { master?.close(); master = nil; try? FileManager.default.removeItem(at: directory) }
+    func close() { shell?.close(); shell = nil; master?.close(); master = nil; try? FileManager.default.removeItem(at: directory) }
     func channel(command: String) throws -> SSHCommandChannel {
         guard master?.isRunning == true else { throw ClientError.connection("The SSH session is closed. Connect again.") }
         // OpenSSH keeps the first value of an option, so these must precede the site's own options.
@@ -219,9 +248,52 @@ final class SCPSSHSession {
             throw ClientError.connection("The SCP shell “\(shell)” did not start the command.\(detail.isEmpty ? "" : " " + detail) A sudo shell must be allowed without a password prompt (NOPASSWD), as in WinSCP.")
         }
     }
+    private func persistentShell(token: CancellationToken) throws -> SSHCommandChannel {
+        if let shell, shell.isRunning { return shell }
+        shell?.close(); shell = nil
+        let configured = configuration.site.settings.shell.trimmingCharacters(in: .whitespaces)
+        let stream = try channel(command: configured.isEmpty ? "exec /bin/sh" : configured)
+        do {
+            // Discard login banners and motd once, before the first command.
+            let marker = "WINSCP-READY-" + UUID().uuidString
+            try stream.send(Data("printf '%s\\n' \(marker)\n".utf8), token: token)
+            for _ in 0..<1000 {
+                var line = try stream.line(token: token)
+                if line.last == 13 { line.removeLast() }
+                if line == Data(marker.utf8) { _ = stream.takeErrors(); shell = stream; return stream }
+            }
+            throw ClientError.protocolError("The shell printed too much output before starting.")
+        } catch ClientError.cancelled {
+            stream.close(); throw ClientError.cancelled
+        } catch {
+            let detail = stream.errorText
+            stream.close()
+            if configured.isEmpty { throw error }
+            throw ClientError.connection("The SCP shell “\(configured)” did not start the command.\(detail.isEmpty ? "" : " " + detail) A sudo shell must be allowed without a password prompt (NOPASSWD), as in WinSCP.")
+        }
+    }
+
+    /// Runs one script in the persistent shell: no stdin (it must not consume the shell's
+    /// input), output up to a unique end marker, and the script's own exit status.
     func run(_ script: String, arguments: [String] = [], token: CancellationToken = CancellationToken()) throws -> Data {
-        let stream = try open(script, arguments: arguments, token: token)
-        defer { stream.close() }
-        return try stream.finish(token: token)
+        try token.check()
+        let stream = try persistentShell(token: token)
+        let marker = "WINSCP-END-" + UUID().uuidString
+        do {
+            stream.markActive(); _ = stream.takeErrors()
+            try stream.send(Data("\(try SCPShell.inline(script, arguments: arguments)) </dev/null; printf '\\n%s %s\\n' \(marker) \"$?\"\n".utf8), token: token)
+            let output = try stream.read(until: Data("\n\(marker) ".utf8), limit: 64 * 1024 * 1024, token: token)
+            let statusLine = try stream.line(token: token)
+            guard let status = Int(String(decoding: statusLine, as: UTF8.self).trimmingCharacters(in: .whitespaces)) else {
+                throw ClientError.protocolError("The shell returned an invalid exit status.")
+            }
+            let errors = stream.takeErrors()
+            guard status == 0 else { throw ClientError.remote("SCP/SSH", status, errors.isEmpty ? "The server rejected the operation." : errors) }
+            return output
+        } catch let error as ClientError {
+            // A cancelled or broken command leaves the shell in an unknown state.
+            if case .remote = error {} else { shell?.close(); shell = nil }
+            throw error
+        }
     }
 }
