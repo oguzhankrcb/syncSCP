@@ -5,7 +5,17 @@ import WinSCPCore
 
 enum PaneSide { case local, remote }
 enum TransferDirection: String { case upload = "Upload", download = "Download" }
-enum BottomTab: String, CaseIterable { case queue = "Transfer queue", log = "Session log" }
+enum BottomTab: String, CaseIterable { case queue = "Transfer queue", editing = "Edited files", log = "Session log" }
+
+/// A remote file open in an external application; saves are uploaded while it is watched.
+struct ExternalEditItem: Identifiable {
+    let id = UUID()
+    let name: String
+    let remotePath: String
+    let application: String
+    var status: String
+    var conflict = false
+}
 enum JobState: String { case waiting = "Waiting", running = "Transferring", done = "Complete", failed = "Failed", cancelled = "Cancelled" }
 
 struct TransferJob: Identifiable {
@@ -56,6 +66,11 @@ final class CommanderModel: ObservableObject {
     @Published private(set) var remoteHome = ""
     @Published private(set) var connectedAt: Date?
     @Published var showImport = false
+    @Published var externalEdits: [ExternalEditItem] = []
+    /// Live external-edit sessions; each belongs to the connection it was opened on.
+    private var editSessions: [UUID: (edit: RemoteEdit, monitor: FileChangeMonitor, session: UUID)] = [:]
+    private var syncingEdits = Set<UUID>()
+    static let externalEditorKey = "ExternalEditorPath"
     private var syncLocal = ""
     private var syncRemote = ""
     private var syncRemoteSnapshot: [String: FileEntry] = [:]
@@ -80,7 +95,7 @@ final class CommanderModel: ObservableObject {
         do { let store = try SiteStore(); self.store = store; sites = try store.load() }
         catch { self.error = error.localizedDescription }
         refreshLocal()
-        appendLog("WinSCP for macOS 0.10.0 · Community development preview")
+        appendLog("WinSCP for macOS 0.12.0 · Community development preview")
     }
 
     func appendLog(_ text: String, error: Bool = false) {
@@ -95,6 +110,7 @@ final class CommanderModel: ObservableObject {
     }
 
     private func closeFailedConnection() {
+        stopAllEdits()
         connected = false; remoteEntries = []; remoteSelection = []; remotePath = ""; currentSite = nil; sessionID = UUID()
         jobs.filter { $0.state == .waiting || $0.state == .running }.forEach { $0.token.cancel() }
         guard !connecting else { return }
@@ -124,6 +140,93 @@ final class CommanderModel: ObservableObject {
         } catch { report(error); return nil }
     }
 
+    // MARK: External editing (WinSCP's external editor)
+
+    private var editsDirectory: URL? { store?.directory.appendingPathComponent("edits", isDirectory: true) }
+
+    /// Downloads `entry`, opens it in `application` (or the file type's default app), and
+    /// uploads each save while the file stays in Edited files.
+    func editExternally(_ entry: FileEntry, with application: URL?) {
+        guard connected, !busy, entry.isRegularFile, let directory = editsDirectory else { return }
+        if let open = externalEdits.first(where: { $0.remotePath == entry.path }), let live = editSessions[open.id] {
+            NSWorkspace.shared.open(live.edit.localFile); return
+        }
+        let generation = sessionID
+        operationBusy = true
+        Task {
+            defer { operationBusy = false }
+            do {
+                let edit = try await RemoteEdit(client: client, entry: entry, directory: directory)
+                let file = edit.localFile
+                guard generation == sessionID else { await edit.discard(); return }
+                guard let app = application ?? NSWorkspace.shared.urlForApplication(toOpen: file) else {
+                    await edit.discard()
+                    throw ClientError.unsupported("No application is set to open \(entry.name). Use Edit With ▸ Other Application….")
+                }
+                let item = ExternalEditItem(name: entry.name, remotePath: entry.path,
+                                            application: FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: ""),
+                                            status: "Watching for saves")
+                let id = item.id
+                let monitor = FileChangeMonitor(file: file) { [weak self] in Task { @MainActor [weak self] in self?.syncEdit(id) } }
+                editSessions[id] = (edit, monitor, generation); externalEdits.append(item)
+                bottomTab = .editing; showBottom = true
+                appendLog("Editing \(entry.path) in \(item.application); saves are uploaded.")
+                let configuration = NSWorkspace.OpenConfiguration(); configuration.activates = true
+                _ = try await NSWorkspace.shared.open([file], withApplicationAt: app, configuration: configuration)
+            } catch { if generation == sessionID { report(error) } }
+        }
+    }
+
+    func syncEdit(_ id: UUID) {
+        guard let live = editSessions[id], !syncingEdits.contains(id) else { return }
+        guard live.session == sessionID, connected else { stopEditing(id, keepChanges: true); return }
+        syncingEdits.insert(id)
+        Task {
+            defer { syncingEdits.remove(id) }
+            do {
+                switch try await live.edit.syncIfChanged() {
+                case .unchanged, .missing: break
+                case .uploaded:
+                    setEditStatus(id, "Uploaded " + Date().formatted(date: .omitted, time: .standard))
+                    appendLog("Uploaded edited \(live.edit.remotePath).")
+                    if RemotePath.parent(live.edit.remotePath) == remotePath, !busy { navigateRemote(remotePath, recordHistory: false) }
+                case .conflict:
+                    setEditStatus(id, "Changed on the server — not uploaded", conflict: true)
+                    let alert = NSAlert(); alert.alertStyle = .warning
+                    alert.messageText = "\((live.edit.remotePath as NSString).lastPathComponent) changed on the server"
+                    alert.informativeText = "The server copy changed after you opened it. Overwrite it with your edited version?"
+                    alert.addButton(withTitle: "Overwrite Server Version"); alert.addButton(withTitle: "Not Now")
+                    guard alert.runModal() == .alertFirstButtonReturn else { return }
+                    _ = try await live.edit.overwrite()
+                    setEditStatus(id, "Uploaded " + Date().formatted(date: .omitted, time: .standard))
+                    appendLog("Overwrote \(live.edit.remotePath) with the edited version.")
+                }
+            } catch {
+                setEditStatus(id, "Upload failed: \(error.localizedDescription)", conflict: true)
+                appendLog("\(live.edit.remotePath): \(error.localizedDescription)", error: true)
+                if case ClientError.connection = error { closeFailedConnection() }
+            }
+        }
+    }
+
+    private func setEditStatus(_ id: UUID, _ text: String, conflict: Bool = false) {
+        guard let index = externalEdits.firstIndex(where: { $0.id == id }) else { return }
+        externalEdits[index].status = text; externalEdits[index].conflict = conflict
+    }
+
+    /// Stops watching. A copy with changes that were never uploaded is kept, never deleted.
+    func stopEditing(_ id: UUID, keepChanges: Bool = false) {
+        guard let live = editSessions.removeValue(forKey: id) else { externalEdits.removeAll { $0.id == id }; return }
+        live.monitor.stop(); externalEdits.removeAll { $0.id == id }
+        Task {
+            if await live.edit.hasUnsyncedChanges {
+                appendLog("Changes to \(live.edit.remotePath) were not uploaded; the copy was kept at \(live.edit.localFile.path).", error: true)
+            } else { await live.edit.discard() }
+        }
+    }
+
+    private func stopAllEdits() { for id in Array(editSessions.keys) { stopEditing(id, keepChanges: true) } }
+
     func deleteSite(_ id: UUID) {
         do { let updated = sites.filter { $0.id != id }; try store?.save(updated); sites = updated }
         catch { report(error) }
@@ -132,6 +235,7 @@ final class CommanderModel: ObservableObject {
     /// For S3, `password` is the secret access key and `sessionToken` optional temporary credentials; neither is saved.
     func connect(site: Site, password: String, sessionToken: String = "") {
         guard !busy else { return }
+        stopAllEdits()
         connecting = true; status = "Connecting to \(site.host)…"
         Task {
             defer { connecting = false }
@@ -178,6 +282,7 @@ final class CommanderModel: ObservableObject {
 
     func disconnect() {
         guard !connecting else { return }
+        stopAllEdits()
         jobs.indices.filter { jobs[$0].state == .waiting || jobs[$0].state == .running }.forEach { jobs[$0].token.cancel() }
         sessionID = UUID(); connecting = true; connected = false
         remoteEntries = []; remoteSelection = []; remotePath = ""; currentSite = nil
@@ -435,6 +540,47 @@ final class CommanderModel: ObservableObject {
         perform { try await self.client.chmod(entry.path, mode: mode) }
     }
 
+    /// WinSCP's New ▸ File (Shift+F4): creates an empty file without replacing an existing one,
+    /// then selects it; a new remote file opens in the editor right away.
+    func promptNewFile() {
+        guard !busy, activeSide == .local || connected else { return }
+        guard let name = prompt(title: "New file", value: "new file.txt") else { return }
+        let side = activeSide
+        operationBusy = true
+        Task {
+            do {
+                try RemotePath.validateName(name)
+                if side == .local {
+                    let path = URL(fileURLWithPath: localPath).appendingPathComponent(name).path
+                    let descriptor = Darwin.open(path, O_WRONLY | O_CREAT | O_EXCL, 0o644)
+                    guard descriptor >= 0 else {
+                        if errno == EEXIST { throw ClientError.conflict("\(name) already exists.") }
+                        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                    }
+                    Darwin.close(descriptor)
+                    operationBusy = false
+                    navigateLocal(localPath, recordHistory: false); localSelection = [path]
+                    appendLog("Created \(path).")
+                } else {
+                    let target = RemotePath.join(remotePath, name)
+                    let empty = FileManager.default.temporaryDirectory.appendingPathComponent("winscp-new-" + UUID().uuidString)
+                    guard FileManager.default.createFile(atPath: empty.path, contents: Data(), attributes: [.posixPermissions: 0o644]) else {
+                        throw ClientError.invalid("Cannot create a temporary empty file.")
+                    }
+                    defer { try? FileManager.default.removeItem(at: empty) }
+                    // No-clobber upload: an existing file of that name is never replaced.
+                    try await client.upload(local: empty, remote: target, replace: false)
+                    operationBusy = false
+                    appendLog("Created \(target).")
+                    navigateRemote(remotePath, recordHistory: false) { [weak self] in
+                        guard let self else { return }
+                        self.activeSide = .remote; self.remoteSelection = [target]; self.editSelected()
+                    }
+                }
+            } catch { operationBusy = false; report(error) }
+        }
+    }
+
     private func perform(_ operation: @escaping () async throws -> Void) {
         guard !busy else { return }; operationBusy = true
         Task {
@@ -452,10 +598,14 @@ final class CommanderModel: ObservableObject {
         return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
     }
 
-    func editSelected() {
+    /// `builtIn` ignores the default external editor (Edit With ▸ Built-in Editor).
+    func editSelected(builtIn: Bool = false) {
         guard !busy, let entry = activeSelection.first, activeSelection.count == 1, !entry.isDirectory else { return }
         if activeSide == .local { NSWorkspace.shared.open(URL(fileURLWithPath: entry.path)); return }
-        guard !entry.isSymbolicLink, entry.size <= 4 * 1024 * 1024 else { report(ClientError.unsupported("The built-in editor supports regular UTF-8 files up to 4 MB.")); return }
+        if !builtIn, let path = UserDefaults.standard.string(forKey: Self.externalEditorKey), !path.isEmpty, entry.isRegularFile {
+            editExternally(entry, with: URL(fileURLWithPath: path)); return
+        }
+        guard !entry.isSymbolicLink, entry.size <= 4 * 1024 * 1024 else { report(ClientError.unsupported("The built-in editor supports regular UTF-8 files up to 4 MB. Use Edit With to open this file in another application.")); return }
         perform {
             let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             defer { try? FileManager.default.removeItem(at: temporary) }

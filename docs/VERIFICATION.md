@@ -1,5 +1,25 @@
 # Verification record
 
+## 0.12.0 — New file
+
+Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **111 XCTest cases, zero failures, zero skips**.
+
+- New SFTP test: the exact New File path (an empty upload with `replace: false`) creates a 0-byte file, refuses to replace an existing file (whose content is kept), and opens for editing.
+- Empty-file round trips and no-clobber uploads were already covered for every protocol.
+- Local creation uses `O_CREAT | O_EXCL`.
+- The New ▾ menu was rendered offscreen. The app was packaged, codesign-verified, and launched and quit normally. **The menu and Shift+F4 were not clicked through interactively.**
+
+## 0.11.0 — External editors
+
+Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **110 XCTest cases, zero failures, zero skips**. The 3 new tests use the real SFTP daemon:
+
+- A downloaded copy lives in a 0700 folder. Touches and unchanged saves upload nothing.
+- In-place saves and atomic replace-on-save each upload exactly the new content. A missing file mid-save is reported as missing, not as an error.
+- A server-side change made after opening blocks the upload (the server copy is kept) until an explicit overwrite. After that, the new version is the baseline.
+- The change monitor notices in-place writes and atomic replacements, and stays quiet without changes.
+
+The Editing tab and the Settings window were rendered offscreen. The app was packaged, codesign-verified, and launched and quit normally. **Opening a real external application, the conflict dialog, and the Edit With menu were not exercised interactively.** Change detection compares content hashes locally, and the server check uses size/mtime (and ETags where the protocol has them), so a same-size, same-second change on the server can go unnoticed, as documented for the built-in editor.
+
 ## 0.10.0 — Persistent SCP shell, ".." row, clickable path
 
 Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **107 XCTest cases, zero failures, zero skips**. Integration tests on the SCP-only daemon show:

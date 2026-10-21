@@ -26,6 +26,7 @@ struct WinSCPMacApp: App {
                 .onAppear { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
         }
         .defaultSize(width: 1320, height: 840)
+        Settings { PreferencesView() }
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Session…") { model.showConnection = true }.keyboardShortcut("n")
@@ -41,6 +42,7 @@ struct WinSCPMacApp: App {
                 Button("Edit") { model.editSelected() }.keyboardShortcut("e").disabled(model.activeSelection.count != 1)
                 Button("Rename…") { model.promptRename() }.keyboardShortcut("r", modifiers: [.command, .shift]).disabled(model.activeSelection.count != 1)
                 Button("New Directory…") { model.promptMkdir() }.keyboardShortcut("n", modifiers: [.command, .shift])
+                Button("New File…") { model.promptNewFile() }.keyboardShortcut("n", modifiers: [.command, .option]).disabled(model.busy)
                 Button("Delete…") { model.deleteSelected() }.keyboardShortcut(.delete, modifiers: .command).disabled(model.activeSelection.isEmpty)
                 Divider()
                 // WinSCP's Commander function keys (fn+F-key on Mac keyboards).
@@ -48,6 +50,7 @@ struct WinSCPMacApp: App {
                     Button("Rename…") { model.promptRename() }.keyboardShortcut(FunctionKey.f2, modifiers: []).disabled(model.activeSelection.count != 1 || model.busy)
                     Button("Edit") { model.editSelected() }.keyboardShortcut(FunctionKey.f4, modifiers: []).disabled(model.activeSelection.count != 1 || model.busy)
                     Button("Copy to Other Panel") { model.copyToOtherPanel() }.keyboardShortcut(FunctionKey.f5, modifiers: []).disabled(!model.canCopyToOtherPanel)
+                    Button("New File…") { model.promptNewFile() }.keyboardShortcut(FunctionKey.f4, modifiers: .shift).disabled(model.busy)
                     Button("New Folder…") { model.promptMkdir() }.keyboardShortcut(FunctionKey.f7, modifiers: []).disabled(model.busy)
                     Button("Delete…") { model.deleteSelected() }.keyboardShortcut(FunctionKey.f8, modifiers: []).disabled(model.activeSelection.isEmpty || model.busy)
                 }
@@ -70,7 +73,7 @@ struct WinSCPMacApp: App {
                 Button("About WinSCP for macOS") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "WinSCP for macOS · Community Port",
-                        .applicationVersion: "0.10.0 — Development Preview",
+                        .applicationVersion: "0.12.0 — Development Preview",
                         .credits: NSAttributedString(string: "Independent community implementation of WinSCP workflows.\nOriginal WinSCP: Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }

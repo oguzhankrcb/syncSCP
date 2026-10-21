@@ -2,7 +2,7 @@
 
 A native macOS implementation of WinSCP's Commander workflow, built with SwiftUI, AppKit, and macOS's OpenSSH and libcurl. Free software under **GPL-3.0-or-later**.
 
-**Status: 0.10.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
+**Status: 0.12.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
 
 ## Build and run
 
@@ -39,8 +39,10 @@ For a development build, use `./scripts/build-app.sh --debug`. For an Apple Sili
 - SSH-agent/default-key, explicit OpenSSH private key, and password/key-passphrase authentication. Passwords are temporarily placed in Keychain for `SSH_ASKPASS`, then removed after the connection attempt; saved site JSON contains no passwords.
 - File and recursive directory upload/download; a sequential queue, progress, cancellation, and per-job results. Files are transferred through temporary `.filepart` paths and committed after completion.
 - Explicit approval before replacement. Cancelling a transfer preserves the old destination file. SFTP atomic replacement requires the OpenSSH `posix-rename` extension; FTP uses server-provided RNFR/RNTO semantics, whose atomicity and race behavior are server-dependent.
+- New ▸ Folder… (F7) and New ▸ File… (⇧F4, ⌘⌥N) in both panes; a new remote file is created empty without replacing an existing one and opens in the editor.
 - Remote mkdir, rename, recursive delete, POSIX permission editing; local folder creation, rename, and Trash integration.
 - UTF-8 remote text editor (4 MB maximum) with save-back and size/mtime conflict checks.
+- External editors like WinSCP's: **Edit With** opens a remote file in any application (or **Open With** for local files), and Settings (⌘,) can make one the default for Edit/F4. The file is downloaded to a private folder; every save that changes the content is uploaded, but only if the server copy is still the version you opened. Otherwise you are asked before overwriting. The Editing tab lists watched files; copies with changes that were never uploaded are kept, never deleted.
 - Reviewed, one-way local → remote synchronization by size/mtime. No remote deletions; symlinks are skipped; type conflicts block execution.
 - WinSCP's Advanced Site Settings, page for page: SCP/Shell (for example `sudo su -`), SFTP server command, timeouts, keepalives, IPv4/IPv6, SOCKS/HTTP/local proxies, SSH tunnels, TLS versions, cipher and key-exchange policies, rekey limits, authentication options, S3 options, notes and site colors. PuTTY-only and not-yet-applied options are shown disabled with a reason. See [Advanced Site Settings](docs/SETTINGS.md).
 - Import from Windows WinSCP: exported `WinSCP.ini`, `reg export` files, or WinSCP under Wine/Whisky/CrossOver on this Mac. Sites come with their folders and all Advanced settings; passphrase-free PuTTY `.ppk` keys are converted to OpenSSH format; trusted host keys are added. Existing data is backed up first and passwords are never imported. See [importing](docs/IMPORT.md).

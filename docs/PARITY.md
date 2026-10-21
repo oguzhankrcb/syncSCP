@@ -17,7 +17,7 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | S3 | Implemented baseline | SigV4 signed payloads, paginated listings, multipart upload, conditional writes, server-side-copy rename and checksums verified against MinIO; AWS and other providers, region discovery, versioning, folder rename and bucket management documented in [S3.md](S3.md) |
 | File operations | Partial | Remote copy, move across filesystems, custom commands, timestamps |
 | Permissions | Partial (n/a for WebDAV/S3) | Single-file numeric POSIX mode, recursive editor and ownership remaining |
-| Text editor | Partial | UTF-8 save-back, 4 MB limit; other encodings, large files, external editor watch remaining |
+| Text editor | Partial | Built-in UTF-8 editor (4 MB) plus external editors with save watching, conflict-checked upload and Edit With/Open With; other encodings and large files in the built-in editor remaining |
 | Synchronization | Partial | One-way reviewed upload with size/mtime revalidation; two-way, checksums, masks, watches remaining |
 | Sites / workspaces | Partial | JSON sites in WinSCP-style folders, with notes, colors, search, Save As and rename; import of WinSCP.ini, `reg export` and Wine/Whisky/CrossOver configurations ([IMPORT.md](IMPORT.md)); tabs and workspaces remaining |
 | Advanced Site Settings | Implemented dialog, partial effect | All upstream pages and settings round-trip; shell/SFTP server, timeouts, keepalives, IP version, SOCKS/HTTP/local proxy, SSH tunnel, TLS versions, cipher/kex policy, rekey, authentication options and S3 options are applied; the rest are badged as planned or unavailable in [SETTINGS.md](SETTINGS.md) |

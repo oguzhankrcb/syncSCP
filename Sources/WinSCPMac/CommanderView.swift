@@ -132,7 +132,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.10.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.12.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)
@@ -187,11 +187,12 @@ struct QueuePanel: View {
         VStack(spacing: 0) {
             HStack(spacing: 18) {
                 tab(.queue, title: "Queue", count: model.pendingCount)
+                tab(.editing, title: "Editing", count: model.externalEdits.count)
                 tab(.log, title: "Log", count: 0)
                 Spacer()
                 if model.bottomTab == .queue {
                     Button("Clear finished") { model.clearCompleted() }.buttonStyle(.borderless).font(.system(size: 11)).disabled(model.runningQueue)
-                } else {
+                } else if model.bottomTab == .log {
                     Button("Copy log") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(model.log.map(\.text).joined(separator: "\n"), forType: .string)
@@ -202,7 +203,7 @@ struct QueuePanel: View {
             }
             .padding(.horizontal, 14).frame(height: 30)
             Divider()
-            if model.bottomTab == .queue { queue } else { log }
+            switch model.bottomTab { case .queue: queue; case .editing: editing; case .log: log }
         }
         .background(surface)
     }
@@ -247,6 +248,30 @@ struct QueuePanel: View {
                         }
                         .font(.system(size: 12)).padding(.horizontal, 14).frame(height: 28)
                         .background(index.isMultiple(of: 2) ? Color.clear : Color.primary.opacity(0.03))
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var editing: some View {
+        if model.externalEdits.isEmpty {
+            Text("Use Edit With on a remote file to edit it in another application; every save is uploaded.")
+                .font(.system(size: 12)).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(model.externalEdits) { item in
+                        HStack(spacing: 12) {
+                            Image(systemName: "square.and.pencil").foregroundStyle(item.conflict ? Color.orange : accent).frame(width: 16)
+                            Text(item.name).lineLimit(1).frame(width: 200, alignment: .leading)
+                            Text(item.remotePath).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                            Text(item.application).foregroundStyle(.secondary).frame(width: 130, alignment: .leading)
+                            Text(item.status).foregroundStyle(item.conflict ? Color.orange : Color.secondary).lineLimit(1).frame(width: 260, alignment: .leading).help(item.status)
+                            Button("Upload Now") { model.syncEdit(item.id) }.buttonStyle(.borderless)
+                            Button("Stop") { model.stopEditing(item.id) }.buttonStyle(.borderless).help("Stop uploading saves; unsaved changes are kept")
+                        }
+                        .font(.system(size: 12)).padding(.horizontal, 14).frame(height: 28)
                     }
                 }
             }
@@ -387,7 +412,12 @@ struct FilePane: View {
                     .disabled(!one || model.busy || model.currentSite?.transferProtocol.supportsPermissions == false)
                     .help(model.currentSite?.transferProtocol.supportsPermissions == false ? "This protocol has no POSIX permissions." : "Edit permissions")
             }
-            ToolButton(title: "New Folder", icon: "folder.badge.plus") { act { model.promptMkdir() } }.disabled(!usable || model.busy)
+            Menu {
+                Button { act { model.promptMkdir() } } label: { Label("Folder…", systemImage: "folder.badge.plus") }
+                Button { act { model.promptNewFile() } } label: { Label("File…", systemImage: "doc.badge.plus") }
+            } label: { Label("New", systemImage: "plus") }
+                .menuStyle(.borderlessButton).fixedSize().font(.system(size: 12)).padding(.horizontal, 8)
+                .disabled(!usable || model.busy).help("New folder (F7) or file (⇧F4)")
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 4).frame(height: 32).disabled(!usable)
@@ -490,6 +520,19 @@ struct FilePane: View {
             let ids = clicked.subtracting([ParentRow.id])
             Button(local ? "Open" : "Open / Edit") { if let entry = allEntries.first(where: { ids.contains($0.id) }) { model.open(entry, side: side) } }
                 .disabled(ids.count != 1 || model.busy)
+            if ids.count == 1, let entry = allEntries.first(where: { ids.contains($0.id) }), entry.isRegularFile {
+                Menu(local ? "Open With" : "Edit With") {
+                    if !local {
+                        Button("Built-in Editor") { model.activeSide = .remote; model.remoteSelection = [entry.id]; model.editSelected(builtIn: true) }
+                        Divider()
+                    }
+                    ForEach(EditorApps.candidates(forFileNamed: entry.name), id: \.self) { app in
+                        Button(EditorApps.name(app)) { openWith(entry, app) }
+                    }
+                    Divider()
+                    Button("Other Application…") { if let app = EditorApps.chooseApplication() { openWith(entry, app) } }
+                }.disabled(model.busy)
+            }
             Button(local ? "Upload" : "Download") { model.activeSide = side; selection.wrappedValue = ids; model.transfer(local ? .upload : .download) }
                 .disabled(!model.connected || ids.isEmpty || model.busy)
             Divider()
@@ -549,6 +592,11 @@ struct FilePane: View {
     }
 
     private func act(_ action: () -> Void) { model.activeSide = side; action() }
+    private func openWith(_ entry: FileEntry, _ app: URL) {
+        model.activeSide = side
+        if local { NSWorkspace.shared.open([URL(fileURLWithPath: entry.path)], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) }
+        else { model.editExternally(entry, with: app) }
+    }
     private func navigate(_ target: String) { model.activeSide = side; local ? model.navigateLocal(target) : model.navigateRemote(target) }
 }
 
@@ -593,6 +641,27 @@ enum DragPayload {
             }
         }
         group.notify(queue: .main) { let result = items; MainActor.assumeIsolated { deliver(result) } }
+    }
+}
+
+/// Applications offered by Edit With / Open With: the file type's default first, then other
+/// apps for the type and for plain text (so code editors appear for .php, .yml, files without extension…).
+enum EditorApps {
+    static func candidates(forFileNamed name: String) -> [URL] {
+        let ext = (name as NSString).pathExtension
+        let type = ext.isEmpty ? UTType.plainText : (UTType(filenameExtension: ext) ?? .plainText)
+        var urls: [URL] = []
+        if let preferred = NSWorkspace.shared.urlForApplication(toOpen: type) { urls.append(preferred) }
+        urls += NSWorkspace.shared.urlsForApplications(toOpen: type) + NSWorkspace.shared.urlsForApplications(toOpen: .plainText)
+        var seen = Set<String>(), result: [URL] = []
+        for url in urls where url.path != Bundle.main.bundlePath && seen.insert(url.resolvingSymlinksInPath().path).inserted { result.append(url) }
+        return Array(result.prefix(12))
+    }
+    static func name(_ url: URL) -> String { FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "") }
+    static func chooseApplication() -> URL? {
+        let panel = NSOpenPanel(); panel.allowedContentTypes = [.application]; panel.canChooseDirectories = false
+        panel.directoryURL = URL(fileURLWithPath: "/Applications"); panel.message = "Choose an application to edit with"
+        return panel.runModal() == .OK ? panel.url : nil
     }
 }
 

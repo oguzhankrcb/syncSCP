@@ -2,7 +2,7 @@
 
 WinSCP'nin çift panelli Commander iş akışını macOS'a taşımayı hedefleyen, SwiftUI/AppKit tabanlı açık kaynak proje. Lisans: **GPL-3.0-or-later**.
 
-**0.10.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
+**0.12.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
 
 ```sh
 ./scripts/swift.sh test
@@ -60,5 +60,15 @@ Siteler klasörleri ve tüm Advanced ayarlarıyla gelir. Şifresiz PuTTY `.ppk` 
 WinSCP Commander tuşları Files ▸ Commander Keys altında (F2 yeniden adlandır, F4 düzenle, F5 diğer panele kopyala, F7 klasör, F8 sil; Mac klavyede fn ile). Go menüsü: ⌘[ geri, ⌘] ileri, ⌘↑ üst klasör, ⌘⇧H ev, ⌃⇥ panel değiştir. "Remember last used directory" ayarı artık uygulanıyor.
 
 0.10.0 ile SCP'de klasör açmak çok daha hızlı. WinSCP gibi tek bir kalıcı shell (örneğin `sudo su -`) açılıyor ve bütün komutlar ona gönderiliyor; eskiden her komut yeni bir SSH kanalı ve yeni bir shell açıyordu. Listelerin başında ".." satırı var. Yol şeridindeki her parçaya tıklayınca o klasöre gidiliyor.
+
+0.11.0 ile harici editör desteği geldi:
+
+- Uzak dosyada sağ tık ▸ **Edit With** ile VS Code, Sublime veya TextEdit gibi bir uygulama seçilebiliyor; yerel dosyada **Open With** var.
+- Settings'ten (⌘,) varsayılan editör seçilirse Edit/F4 doğrudan o uygulamayı açıyor.
+- Dosya özel bir klasöre indiriliyor ve içeriği değişen her kayıt sunucuya yükleniyor. Sunucudaki dosya açıldıktan sonra değiştiyse üzerine yazmadan önce soruluyor.
+- Alttaki **Editing** sekmesi izlenen dosyaları gösteriyor.
+- Yüklenmemiş değişiklik içeren kopyalar hiçbir zaman silinmiyor.
+
+0.12.0 ile iki panelin işlem çubuğuna **New ▾** menüsü eklendi: Folder… (F7) ve File… (⇧F4, ⌘⌥N). Yeni dosya boş oluşturuluyor; aynı adda bir dosya varsa üzerine yazılmıyor. Uzak panelde oluşturulan dosya hemen editörde açılıyor.
 
 Tam WinSCP betik uyumluluğu, tünelleme, aktarımı kaldığı yerden sürdürme ve tam özellik eşitliği henüz yoktur. Ayrıntılar: [özellik tablosu](docs/PARITY.md), [İngilizce kullanım ve mimari](README.md).
