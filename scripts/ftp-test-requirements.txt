@@ -1,0 +1,8 @@
+# Test fixtures only; the application uses macOS's system libcurl.
+pyftpdlib==2.2.0
+pyOpenSSL==26.4.0
+cryptography==50.0.2
+cffi==2.1.1
+pycparser==3.11
+pyasynchat==1.0.5
+pyasyncore==1.0.5

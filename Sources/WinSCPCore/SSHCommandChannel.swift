@@ -1,0 +1,200 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+import Foundation
+import Darwin
+
+/// A raw SSH channel, independent of the SFTP length-prefixed transport.
+/// Nonblocking pipes allow cancellation and an inactivity deadline during both reads and writes.
+final class SSHCommandChannel {
+    private let process = Process()
+    private let input = Pipe(), output = Pipe(), errors = Pipe()
+    private var buffered = Data(), diagnostics = Data()
+    private var closed = false
+    private var lastActivity = Date()
+    private var outputEOF = false
+
+    init(arguments: [String], environment: [String: String] = [:]) throws {
+        signal(SIGPIPE, SIG_IGN)
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = arguments
+        process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
+        process.standardInput = input; process.standardOutput = output; process.standardError = errors
+        try process.run()
+        // Close the parent's copies of the child's ends so EOF is observable.
+        try? input.fileHandleForReading.close()
+        try? output.fileHandleForWriting.close()
+        try? errors.fileHandleForWriting.close()
+        for fd in [input.fileHandleForWriting.fileDescriptor, output.fileHandleForReading.fileDescriptor, errors.fileHandleForReading.fileDescriptor] {
+            _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
+            _ = fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC)
+        }
+    }
+
+    deinit { close() }
+    var isRunning: Bool { process.isRunning }
+    var errorText: String { drainErrors(); return String(decoding: diagnostics, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    func close() {
+        guard !closed else { return }; closed = true
+        try? input.fileHandleForWriting.close()
+        if process.isRunning { process.terminate() }
+        try? output.fileHandleForReading.close(); try? errors.fileHandleForReading.close()
+        let child = process
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
+            if child.isRunning { kill(child.processIdentifier, SIGKILL) }
+        }
+    }
+
+    func finishInput() { try? input.fileHandleForWriting.close() }
+
+    private func drainErrors() {
+        guard !closed else { return }
+        var bytes = [UInt8](repeating: 0, count: 4096)
+        while true {
+            let count = Darwin.read(errors.fileHandleForReading.fileDescriptor, &bytes, bytes.count)
+            guard count > 0 else { break }
+            diagnostics.append(contentsOf: bytes.prefix(count))
+            if diagnostics.count > 32768 { diagnostics = Data(diagnostics.suffix(32768)) }
+        }
+    }
+
+    private func ready(_ fd: Int32, events: Int16, token: CancellationToken) throws -> Int16 {
+        while true {
+            try token.check(); drainErrors()
+            guard !closed else { throw ClientError.connection("The SSH channel is closed.") }
+            guard Date().timeIntervalSince(lastActivity) < 45 else {
+                throw ClientError.connection("SSH did not respond for 45 seconds.")
+            }
+            var descriptor = pollfd(fd: fd, events: events, revents: 0)
+            let result = poll(&descriptor, 1, 100)
+            if result > 0 { return descriptor.revents }
+            if result < 0, errno != EINTR { throw failure() }
+        }
+    }
+
+    func send(_ data: Data, token: CancellationToken) throws {
+        try data.withUnsafeBytes { raw in
+            var offset = 0
+            while offset < raw.count {
+                let events = try ready(input.fileHandleForWriting.fileDescriptor, events: Int16(POLLOUT), token: token)
+                guard events & Int16(POLLERR | POLLHUP | POLLNVAL) == 0 else { throw failure() }
+                let count = Darwin.write(input.fileHandleForWriting.fileDescriptor, raw.baseAddress!.advanced(by: offset), min(raw.count - offset, 65536))
+                if count > 0 { offset += count; lastActivity = Date() }
+                else if count < 0, errno != EAGAIN, errno != EINTR { throw failure() }
+            }
+        }
+    }
+
+    private func readMore(token: CancellationToken) throws -> Bool {
+        if outputEOF { return false }
+        _ = try ready(output.fileHandleForReading.fileDescriptor, events: Int16(POLLIN), token: token)
+        var bytes = [UInt8](repeating: 0, count: 65536)
+        let count = Darwin.read(output.fileHandleForReading.fileDescriptor, &bytes, bytes.count)
+        if count == 0 { outputEOF = true; return false }
+        if count < 0 {
+            if errno == EAGAIN || errno == EINTR { return try readMore(token: token) }
+            throw failure()
+        }
+        buffered.append(contentsOf: bytes.prefix(count)); lastActivity = Date(); return true
+    }
+
+    func read(_ count: Int, token: CancellationToken) throws -> Data {
+        while buffered.count < count { guard try readMore(token: token) else { throw failure() } }
+        let value = Data(buffered.prefix(count)); buffered.removeFirst(count); return value
+    }
+
+    func line(token: CancellationToken) throws -> Data {
+        while true {
+            if let index = buffered.firstIndex(of: 10) {
+                let length = buffered.distance(from: buffered.startIndex, to: index)
+                guard length <= 16384 else { throw ClientError.protocolError("SCP control line is too long.") }
+                let result = Data(buffered.prefix(length)); buffered.removeFirst(length + 1); return result
+            }
+            guard buffered.count <= 16384 else { throw ClientError.protocolError("SCP control line is too long.") }
+            guard try readMore(token: token) else { throw failure() }
+        }
+    }
+
+    func finish(token: CancellationToken = CancellationToken(), limit: Int = 64 * 1024 * 1024) throws -> Data {
+        var result = Data()
+        repeat {
+            guard buffered.count <= limit - result.count else { throw ClientError.protocolError("SSH command output exceeds the size limit.") }
+            result.append(buffered); buffered.removeAll(keepingCapacity: true)
+        } while try readMore(token: token)
+        while process.isRunning {
+            try token.check(); drainErrors()
+            guard Date().timeIntervalSince(lastActivity) < 45 else { throw ClientError.connection("SSH command did not exit.") }
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        drainErrors()
+        guard process.terminationReason == .exit, process.terminationStatus == 0 else {
+            if process.terminationStatus == 255 || process.terminationReason != .exit { throw failure() }
+            throw ClientError.remote("SCP/SSH", Int(process.terminationStatus), errorText.isEmpty ? "The server rejected the operation." : errorText)
+        }
+        return result
+    }
+
+    private func failure() -> ClientError {
+        let detail = errorText
+        return .connection(detail.isEmpty ? "SSH closed the channel. Check the connection and remote SCP support." : detail)
+    }
+}
+
+/// All paths become positional arguments to /bin/sh, never executable shell fragments.
+enum SCPShell {
+    static func quote(_ value: String) throws -> String {
+        guard !value.contains("\0") else { throw ClientError.invalid("A remote path cannot contain a null character.") }
+        return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+    static func command(_ script: String, arguments: [String] = []) throws -> String {
+        let prefix = "PATH=/usr/bin:/bin:/usr/sbin:/sbin; export PATH; LC_ALL=C; export LC_ALL; unset CDPATH; umask 077; "
+        return try "exec /bin/sh -c " + quote(prefix + script) + " winscp " + arguments.map(quote).joined(separator: " ")
+    }
+}
+
+/// One authenticated master plus independent command/SCP channels on the same connection.
+/// ProxyCommand=false makes OpenSSH's normal direct-connection fallback fail closed.
+final class SCPSSHSession {
+    private let configuration: SSHConfiguration
+    private let directory: URL
+    private let socket: String
+    private var master: SSHCommandChannel?
+
+    static func masterArguments(_ configuration: SSHConfiguration, socket: String) throws -> [String] {
+        // An idle -N master can outlive an app crash. An initial remote cat instead
+        // exits when the owner's stdin pipe closes, including abnormal app exit.
+        try configuration.baseArguments() + ["-M", "-S", socket, "-o", "ControlPersist=no", "--", configuration.site.host,
+                                             SCPShell.command("exec cat >/dev/null")]
+    }
+
+    init(_ configuration: SSHConfiguration) throws {
+        self.configuration = configuration
+        // Short enough for macOS sockaddr_un; a private unpredictable directory protects the socket.
+        directory = URL(fileURLWithPath: "/tmp/winscp-scp-" + UUID().uuidString)
+        socket = directory.appendingPathComponent("s").path
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        do {
+            master = try SSHCommandChannel(arguments: Self.masterArguments(configuration, socket: socket), environment: configuration.environment)
+            let deadline = Date().addingTimeInterval(20)
+            while !FileManager.default.fileExists(atPath: socket) {
+                guard master!.isRunning else { throw ClientError.connection(master!.errorText.isEmpty ? "SSH authentication failed." : master!.errorText) }
+                guard Date() < deadline else { throw ClientError.connection("SSH authentication timed out.") }
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+            let probe = try channel(command: "exit 0")
+            defer { probe.close() }
+            _ = try probe.finish()
+        } catch { close(); throw error }
+    }
+    var controlPath: String { socket }
+    deinit { close() }
+    func close() { master?.close(); master = nil; try? FileManager.default.removeItem(at: directory) }
+    func channel(command: String) throws -> SSHCommandChannel {
+        guard master?.isRunning == true else { throw ClientError.connection("The SSH session is closed. Connect again.") }
+        return try SSHCommandChannel(arguments: configuration.baseArguments() + ["-S", socket, "-o", "ControlMaster=no", "-o", "BatchMode=yes", "-o", "ProxyCommand=/usr/bin/false", "--", configuration.site.host, command])
+    }
+    func run(_ script: String, arguments: [String] = [], token: CancellationToken = CancellationToken()) throws -> Data {
+        let stream = try channel(command: SCPShell.command(script, arguments: arguments))
+        defer { stream.close() }
+        return try stream.finish(token: token)
+    }
+}

@@ -1,0 +1,6 @@
+.build/
+.swiftpm/
+dist/
+upstream/winscp/
+.DS_Store
+*.xcuserstate
