@@ -132,7 +132,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.8.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.9.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)
@@ -275,6 +275,7 @@ struct FilePane: View {
     let side: PaneSide
     @State private var pathInput = ""
     @State private var sortOrder = [KeyPathComparator(\FileEntry.name)]
+    @State private var dropTargeted = false
     private var local: Bool { side == .local }
     private var active: Bool { model.activeSide == side }
     private var path: String { local ? model.localPath : model.remotePath }
@@ -302,7 +303,13 @@ struct FilePane: View {
             actionBar
             Divider()
             pathStrip
-            if !usable { disconnected } else { fileTable }
+            if !usable { disconnected } else {
+                fileTable
+                    .onDrop(of: local ? [DragPayload.remoteType] : [UTType.fileURL.identifier], isTargeted: $dropTargeted) { providers in
+                        local ? DragPayload.remotePaths(providers) { model.downloadDropped($0) } : DragPayload.fileURLs(providers) { model.uploadDropped($0) }
+                    }
+                    .overlay { if dropTargeted { RoundedRectangle(cornerRadius: 4).stroke(accent, lineWidth: 2).padding(2).allowsHitTesting(false) } }
+            }
             Divider()
             footer
         }
@@ -419,20 +426,24 @@ struct FilePane: View {
     /// Local: Name, Size, Type, Changed. Remote: Name, Size, Changed, Rights — as in WinSCP.
     @ViewBuilder private var fileTable: some View {
         if local {
-            decorated(Table(entries, selection: selection, sortOrder: $sortOrder) {
+            decorated(Table(of: FileEntry.self, selection: selection, sortOrder: $sortOrder) {
                 nameColumn.width(min: 160, ideal: 280)
                 sizeColumn.width(min: 60, ideal: 80, max: 110)
                 TableColumn("Type") { entry in Text(FileType.describe(entry)).foregroundStyle(.secondary).lineLimit(1) }.width(min: 70, ideal: 130, max: 190)
                 changedColumn.width(min: 110, ideal: 140, max: 170)
+            } rows: {
+                ForEach(entries) { entry in TableRow(entry).itemProvider { DragPayload.provider(for: entry, local: true) } }
             })
         } else {
-            decorated(Table(entries, selection: selection, sortOrder: $sortOrder) {
+            decorated(Table(of: FileEntry.self, selection: selection, sortOrder: $sortOrder) {
                 nameColumn.width(min: 160, ideal: 280)
                 sizeColumn.width(min: 60, ideal: 80, max: 110)
                 changedColumn.width(min: 110, ideal: 140, max: 170)
                 TableColumn("Rights") { entry in
                     Text(entry.rights).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                 }.width(min: 80, ideal: 90, max: 110)
+            } rows: {
+                ForEach(entries) { entry in TableRow(entry).itemProvider { DragPayload.provider(for: entry, local: false) } }
             })
         }
     }
@@ -502,6 +513,50 @@ struct FilePane: View {
 
     private func act(_ action: () -> Void) { model.activeSide = side; action() }
     private func navigate(_ target: String) { model.activeSide = side; local ? model.navigateLocal(target) : model.navigateRemote(target) }
+}
+
+/// Drag and drop between panes and from Finder. Local rows carry file URLs (Finder and the
+/// remote pane accept them); remote rows carry their paths under an app-private type that
+/// only this app's local pane accepts, so a remote item is never mistaken for a local file.
+enum DragPayload {
+    static let remoteType = "org.winscp.community.mac.remote-paths"
+
+    static func provider(for entry: FileEntry, local: Bool) -> NSItemProvider {
+        if local { return NSItemProvider(contentsOf: URL(fileURLWithPath: entry.path)) ?? NSItemProvider() }
+        let provider = NSItemProvider()
+        provider.registerDataRepresentation(forTypeIdentifier: remoteType, visibility: .ownProcess) { completion in
+            completion(try? JSONEncoder().encode([entry.path]), nil); return nil
+        }
+        return provider
+    }
+
+    static func fileURLs(_ providers: [NSItemProvider], deliver: @escaping @MainActor ([URL]) -> Void) -> Bool {
+        let accepted = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        guard !accepted.isEmpty else { return false }
+        collect(accepted, type: UTType.fileURL.identifier, decode: { URL(dataRepresentation: $0, relativeTo: nil).map { [$0] } ?? [] }, deliver: deliver)
+        return true
+    }
+
+    static func remotePaths(_ providers: [NSItemProvider], deliver: @escaping @MainActor ([String]) -> Void) -> Bool {
+        let accepted = providers.filter { $0.hasItemConformingToTypeIdentifier(remoteType) }
+        guard !accepted.isEmpty else { return false }
+        collect(accepted, type: remoteType, decode: { (try? JSONDecoder().decode([String].self, from: $0)) ?? [] }, deliver: deliver)
+        return true
+    }
+
+    /// Loads every provider, then delivers all items once on the main actor.
+    private static func collect<T>(_ providers: [NSItemProvider], type: String, decode: @escaping @Sendable (Data) -> [T], deliver: @escaping @MainActor ([T]) -> Void) {
+        let group = DispatchGroup(), lock = NSLock()
+        var items: [T] = []
+        for provider in providers {
+            group.enter()
+            _ = provider.loadDataRepresentation(forTypeIdentifier: type) { data, _ in
+                if let data { let decoded = decode(data); lock.lock(); items += decoded; lock.unlock() }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) { let result = items; MainActor.assumeIsolated { deliver(result) } }
+    }
 }
 
 enum FileType {

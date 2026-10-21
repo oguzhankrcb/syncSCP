@@ -1,5 +1,16 @@
 # Verification record
 
+## 0.9.0 — Drag and drop, Commander keys, remembered folders
+
+Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **106 XCTest cases, zero failures, zero skips**. A first debug attempt exited with code 1 before running any test and left an empty log; the rerun passed, and the cause was not identified. A headless harness checked the drag payloads:
+
+- remote rows round-trip their paths (including quotes and `$`) under the app-private type;
+- local rows deliver their file URL;
+- each pane refuses the other side's type;
+- F5 maps to `NSF5FunctionKey`.
+
+The universal 0.9.0 app was packaged (the ignored mockup no longer enters the source ZIP), passed strict codesign verification, and launched and quit normally. **Dragging with the mouse, the function keys and remembered folders were not exercised interactively in the running app.** Dragging remote items into Finder (file promises) is not implemented.
+
 ## 0.8.0 — WinSCP import
 
 Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **106 XCTest cases, zero failures, zero skips**, with no compiler warnings.

@@ -280,7 +280,7 @@ struct AdvancedSiteSettingsView: View {
                     TextField("~", text: $draft.localPath)
                     Button("Choose…") { if let path = choose(directory: true, start: draft.localPath) { draft.localPath = path } }
                 }
-                Check(title: "Remember last used directory", isOn: s.rememberLastDirectory, status: .planned)
+                Check(title: "Remember last used directory", isOn: s.rememberLastDirectory)
                 Check(title: "Synchronize browsing", isOn: s.synchronizeBrowsing, status: .planned)
             }
             Group(title: "Directory reading options", status: .planned) {

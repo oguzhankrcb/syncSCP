@@ -26,6 +26,7 @@ Settings are saved in the site's `settings` object in `sites.json`. Missing or u
 | SCP/Shell | **Shell** (e.g. `sudo su -`, `sudo -s`) | Each SCP command channel starts the shell as the remote command. It then sends one line: a unique marker followed by `exec` of the quoted script. Banner output before the marker is discarded, and SCP data is only written after the shell has consumed that line. The connection probe also runs through the shell, so a shell that cannot start fails at login. `sudo` must not prompt (NOPASSWD), as in WinSCP. |
 | SFTP | **SFTP server** (e.g. `sudo /usr/lib/openssh/sftp-server`) | Runs as the remote command instead of the `sftp` subsystem. Shell start-up files must print nothing. |
 | Directories | Remote / local directory | Initial folders (the former Login fields). |
+| Directories | Remember last used directory | Saved sites store the folders of both panes after each successful navigation. |
 | Connection | Server response timeout | SSH `ConnectTimeout`. libcurl connect and FTP response timeouts, with a stall limit of at least 45 s. |
 | Connection | Keepalives: Off / null SSH packets, interval | `ServerAliveInterval` (`ServerAliveCountMax=2`). |
 | Connection | Internet protocol version | SSH `AddressFamily`, libcurl `IPRESOLVE`. |
@@ -49,7 +50,7 @@ If a stored value cannot be applied, the connection fails with an explanation ra
 
 ## Not applied in this release
 
-- **Planned:** EOL/UTF-8/time-zone overrides; remember-last-directory, synchronized browsing and directory caching options; recycle bin; file encryption; SFTP versions 4–6, path canonicalization, SCP fallback and SFTP bug flags; SCP user-group lookup; all FTP protocol options (post-login commands, MLSD/LIST control, HOST, account, VMS, active mode, FTP keepalives); S3 role ARN; WebDAV liberal escaping; dummy-command keepalives; proxy authentication and Telnet proxy; tunnel passwords; tunnels for FTP/WebDAV/S3; TLS client certificates; bypass authentication.
+- **Planned:** EOL/UTF-8/time-zone overrides; synchronized browsing and directory caching options; recycle bin; file encryption; SFTP versions 4–6, path canonicalization, SCP fallback and SFTP bug flags; SCP user-group lookup; all FTP protocol options (post-login commands, MLSD/LIST control, HOST, account, VMS, active mode, FTP keepalives); S3 role ARN; WebDAV liberal escaping; dummy-command keepalives; proxy authentication and Telnet proxy; tunnel passwords; tunnels for FTP/WebDAV/S3; TLS client certificates; bypass authentication.
 - **Not available with OpenSSH:** PuTTY terminal settings, scp1 compatibility, single-DES, GSSAPI key exchange, SSH connection buffer optimization, and the whole SSH Bugs page.
 - **By design:**
   - Return code variable and LS listing options: the port reads exit status from SSH and lists with `stat`.

@@ -42,6 +42,23 @@ struct WinSCPMacApp: App {
                 Button("Rename…") { model.promptRename() }.keyboardShortcut("r", modifiers: [.command, .shift]).disabled(model.activeSelection.count != 1)
                 Button("New Directory…") { model.promptMkdir() }.keyboardShortcut("n", modifiers: [.command, .shift])
                 Button("Delete…") { model.deleteSelected() }.keyboardShortcut(.delete, modifiers: .command).disabled(model.activeSelection.isEmpty)
+                Divider()
+                // WinSCP's Commander function keys (fn+F-key on Mac keyboards).
+                Menu("Commander Keys") {
+                    Button("Rename…") { model.promptRename() }.keyboardShortcut(FunctionKey.f2, modifiers: []).disabled(model.activeSelection.count != 1 || model.busy)
+                    Button("Edit") { model.editSelected() }.keyboardShortcut(FunctionKey.f4, modifiers: []).disabled(model.activeSelection.count != 1 || model.busy)
+                    Button("Copy to Other Panel") { model.copyToOtherPanel() }.keyboardShortcut(FunctionKey.f5, modifiers: []).disabled(!model.canCopyToOtherPanel)
+                    Button("New Folder…") { model.promptMkdir() }.keyboardShortcut(FunctionKey.f7, modifiers: []).disabled(model.busy)
+                    Button("Delete…") { model.deleteSelected() }.keyboardShortcut(FunctionKey.f8, modifiers: []).disabled(model.activeSelection.isEmpty || model.busy)
+                }
+            }
+            CommandMenu("Go") {
+                Button("Back") { model.goBack(model.activeSide) }.keyboardShortcut("[").disabled(!model.canGoBack(model.activeSide) || model.busy)
+                Button("Forward") { model.goForward(model.activeSide) }.keyboardShortcut("]").disabled(!model.canGoForward(model.activeSide) || model.busy)
+                Button("Parent Folder") { model.goUp(model.activeSide) }.keyboardShortcut(.upArrow).disabled(model.busy)
+                Button("Home Folder") { model.goHome(model.activeSide) }.keyboardShortcut("h", modifiers: [.command, .shift]).disabled(model.busy)
+                Divider()
+                Button("Switch Panel") { model.activeSide = model.activeSide == .local ? .remote : .local }.keyboardShortcut(.tab, modifiers: .control)
             }
             CommandMenu("Session") {
                 Button("Synchronize…") { model.previewSynchronization() }.keyboardShortcut("s", modifiers: [.command, .shift]).disabled(!model.connected)
@@ -53,13 +70,19 @@ struct WinSCPMacApp: App {
                 Button("About WinSCP for macOS") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "WinSCP for macOS · Community Port",
-                        .applicationVersion: "0.8.0 — Development Preview",
+                        .applicationVersion: "0.9.0 — Development Preview",
                         .credits: NSAttributedString(string: "Independent community implementation of WinSCP workflows.\nOriginal WinSCP: Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }
             }
         }
     }
+}
+
+enum FunctionKey {
+    private static func key(_ code: Int) -> KeyEquivalent { KeyEquivalent(Character(UnicodeScalar(UInt32(code))!)) }
+    static let f2 = key(NSF2FunctionKey), f4 = key(NSF4FunctionKey), f5 = key(NSF5FunctionKey)
+    static let f7 = key(NSF7FunctionKey), f8 = key(NSF8FunctionKey)
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {

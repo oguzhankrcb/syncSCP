@@ -79,7 +79,7 @@ final class CommanderModel: ObservableObject {
         do { let store = try SiteStore(); self.store = store; sites = try store.load() }
         catch { self.error = error.localizedDescription }
         refreshLocal()
-        appendLog("WinSCP for macOS 0.8.0 · Community development preview")
+        appendLog("WinSCP for macOS 0.9.0 · Community development preview")
     }
 
     func appendLog(_ text: String, error: Bool = false) {
@@ -203,6 +203,7 @@ final class CommanderModel: ObservableObject {
             let entries = try LocalFiles.list(url.path)
             if recordHistory { record(.local, from: localPath, to: url.path) }
             localPath = url.path; localEntries = entries; localSelection = []
+            rememberDirectories()
         } catch { report(error) }
     }
 
@@ -231,6 +232,12 @@ final class CommanderModel: ObservableObject {
             if localPath != before { done() }
         } else { navigateRemote(target, recordHistory: false, completion: done) }
     }
+    func goUp(_ side: PaneSide) {
+        let path = side == .local ? localPath : remotePath
+        guard !path.isEmpty, path != "/", side == .local || connected else { return }
+        activeSide = side
+        side == .local ? navigateLocal(RemotePath.parent(path)) : navigateRemote(RemotePath.parent(path))
+    }
     func goHome(_ side: PaneSide) {
         side == .local ? navigateLocal(FileManager.default.homeDirectoryForCurrentUser.path) : navigateRemote(remoteHome.isEmpty ? "/" : remoteHome)
     }
@@ -247,6 +254,7 @@ final class CommanderModel: ObservableObject {
                 guard generation == sessionID else { return }
                 if recordHistory { record(.remote, from: remotePath, to: canonical) }
                 remotePath = canonical; remoteEntries = entries; remoteSelection = []
+                rememberDirectories()
                 completion?()
             } catch { if generation == sessionID { report(error) } }
         }
@@ -260,9 +268,10 @@ final class CommanderModel: ObservableObject {
         else { remoteSelection = [entry.id]; editSelected() }
     }
 
-    func transfer(_ direction: TransferDirection) {
+    /// Queues `chosen` (or the pane's selection) into the other pane's current folder.
+    func transfer(_ direction: TransferDirection, entries chosen: [FileEntry]? = nil) {
         guard connected, !busy else { return }
-        let entries = direction == .upload ? localEntries.filter { localSelection.contains($0.id) } : remoteEntries.filter { remoteSelection.contains($0.id) }
+        let entries = chosen ?? (direction == .upload ? localEntries.filter { localSelection.contains($0.id) } : remoteEntries.filter { remoteSelection.contains($0.id) })
         guard !entries.isEmpty else { return }
         let existing = direction == .upload ? remoteEntries : localEntries
         let conflicts = entries.filter { entry in existing.contains { $0.name == entry.name } }
@@ -281,6 +290,37 @@ final class CommanderModel: ObservableObject {
                                     replace: replace))
         }
         bottomTab = .queue; showBottom = true; startQueue()
+    }
+
+    /// WinSCP's F5: copy the active pane's selection to the other pane.
+    func copyToOtherPanel() { transfer(activeSide == .local ? .upload : .download) }
+    var canCopyToOtherPanel: Bool { activeSide == .local ? canUpload : canDownload }
+
+    /// Files or folders dropped from Finder (or the local pane) onto the remote pane.
+    func uploadDropped(_ urls: [URL]) {
+        let entries = urls.filter(\.isFileURL).compactMap { try? LocalFiles.info($0.path) }
+        guard !entries.isEmpty else { return }
+        activeSide = .remote
+        transfer(.upload, entries: entries)
+    }
+    /// Remote items dragged onto the local pane; only entries of the current remote listing are accepted.
+    func downloadDropped(_ paths: [String]) {
+        let wanted = Set(paths)
+        let entries = remoteEntries.filter { wanted.contains($0.path) }
+        guard !entries.isEmpty else { return }
+        activeSide = .local
+        transfer(.download, entries: entries)
+    }
+
+    /// "Remember last used directory" (Advanced ▸ Directories) for saved sites.
+    private func rememberDirectories() {
+        guard connected, let site = currentSite, site.settings.rememberLastDirectory,
+              let index = sites.firstIndex(where: { $0.id == site.id }) else { return }
+        var saved = sites[index]
+        guard saved.remotePath != remotePath || saved.localPath != localPath else { return }
+        saved.remotePath = remotePath; saved.localPath = localPath
+        do { try store?.save(sites.enumerated().map { $0.offset == index ? saved : $0.element }); sites[index] = saved; currentSite?.remotePath = remotePath; currentSite?.localPath = localPath }
+        catch { appendLog("Could not remember the last directory: \(error.localizedDescription)", error: true) }
     }
 
     private func startQueue() {
