@@ -31,6 +31,8 @@ struct WinSCPMacApp: App {
                 Button("New Session…") { model.showConnection = true }.keyboardShortcut("n")
                     .disabled(model.busy || model.editor != nil || model.showSync)
                 Button("Disconnect") { model.disconnect() }.disabled(!model.connected)
+                Divider()
+                Button("Import from WinSCP…") { model.showImport = true }.disabled(model.busy)
             }
             CommandMenu("Files") {
                 Button("Upload Selected") { model.transfer(.upload) }.keyboardShortcut("u", modifiers: [.command, .shift]).disabled(!model.canUpload)
@@ -51,7 +53,7 @@ struct WinSCPMacApp: App {
                 Button("About WinSCP for macOS") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "WinSCP for macOS · Community Port",
-                        .applicationVersion: "0.7.0 — Development Preview",
+                        .applicationVersion: "0.8.0 — Development Preview",
                         .credits: NSAttributedString(string: "Independent community implementation of WinSCP workflows.\nOriginal WinSCP: Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }

@@ -19,11 +19,11 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | Permissions | Partial (n/a for WebDAV/S3) | Single-file numeric POSIX mode, recursive editor and ownership remaining |
 | Text editor | Partial | UTF-8 save-back, 4 MB limit; other encodings, large files, external editor watch remaining |
 | Synchronization | Partial | One-way reviewed upload with size/mtime revalidation; two-way, checksums, masks, watches remaining |
-| Sites / workspaces | Partial | JSON sites in WinSCP-style folders, with notes, colors, search, Save As and rename; tabs, workspaces, WinSCP INI import remaining |
+| Sites / workspaces | Partial | JSON sites in WinSCP-style folders, with notes, colors, search, Save As and rename; import of WinSCP.ini, `reg export` and Wine/Whisky/CrossOver configurations ([IMPORT.md](IMPORT.md)); tabs and workspaces remaining |
 | Advanced Site Settings | Implemented dialog, partial effect | All upstream pages and settings round-trip; shell/SFTP server, timeouts, keepalives, IP version, SOCKS/HTTP/local proxy, SSH tunnel, TLS versions, cipher/kex policy, rekey, authentication options and S3 options are applied; the rest are badged as planned or unavailable in [SETTINGS.md](SETTINGS.md) |
 | Automation / CLI | Missing | Script parser, protocol URLs, compatible exit codes and logs |
 | .NET assembly | Missing | Evaluate portable automation API and compatibility strategy |
-| PuTTY / Pageant | macOS equivalent partial | OpenSSH agent; PPK conversion/import missing |
+| PuTTY / Pageant | macOS equivalent partial | OpenSSH agent; passphrase-free PPK v2/v3 conversion on import; encrypted PPK and Pageant remaining |
 | Tunnel / proxy / jump host | Partial | SSH tunnel and SOCKS4/5/HTTP/local proxies for SFTP/SCP; SOCKS/HTTP proxies for FTP/WebDAV/S3; proxy authentication, Telnet proxy and tunnels for curl protocols remain |
 | Localization / accessibility | Partial | English UI with native controls; localization, full VoiceOver/keyboard audit |
 | Release distribution | Partial | Local ad-hoc signed .app; Developer ID, notarization, updates, DMG release remaining |

@@ -30,6 +30,7 @@ struct ConnectionSheet: View {
     @State private var selectedSite: UUID?
     @State private var search = ""
     @State private var showAdvancedSettings = false
+    @State private var showImport = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,6 +41,9 @@ struct ConnectionSheet: View {
             }
             Divider()
             HStack(spacing: 8) {
+                Menu("Tools") {
+                    Button("Import Sites from WinSCP…") { showImport = true }
+                }.fixedSize()
                 Menu("Manage") {
                     Button("Rename…") { renameSelected() }.disabled(selectedSite == nil)
                     Button("Delete") { if let id = selectedSite { model.deleteSite(id); selectedSite = nil; site = Site() } }.disabled(selectedSite == nil)
@@ -67,6 +71,7 @@ struct ConnectionSheet: View {
         .onDisappear { model.requestedSite = nil }
         .interactiveDismissDisabled(model.connecting)
         .sheet(isPresented: $showAdvancedSettings) { AdvancedSiteSettingsView(site: $site) }
+        .sheet(isPresented: $showImport) { ImportSheet(model: model) }
     }
 
     /// Sites grouped like WinSCP's folders: a saved name "Production/db-1" is "db-1" in "Production".

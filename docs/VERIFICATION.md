@@ -1,5 +1,29 @@
 # Verification record
 
+## 0.8.0 — WinSCP import
+
+Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **106 XCTest cases, zero failures, zero skips**, with no compiler warnings.
+
+The 8 new tests cover:
+
+- A realistic `WinSCP.ini` and the same data as a UTF-16 `reg export` (dwords, wrapped binary float, escaped quotes) and as a Wine `user.reg` (doubled key backslashes, timestamps, `\x` escapes).
+- Key names, enum numbers/names and mappings taken from upstream `TSessionData::DoLoad`.
+- Skipped defaults, workspaces and hostless sites, and that no secret reaches `sites.json`.
+- Ed25519/RSA/ECDSA host keys converted from PuTTY's format, compared exactly with vectors produced independently from `ssh-keygen` keys (Ed25519 points decompressed in separate Python math and checked to recompress).
+- PPK format 3 (Ed25519) and format 2 (RSA) written by a separate Python implementation of PuTTY's format; the converted keys derive the original public key with `ssh-keygen -y`. Tampered, encrypted and malformed files are refused.
+- An end-to-end commit from a fake Wine prefix: `C:\` resolution, a shared key converted once at mode 0600, unique names, the backup, re-import recognized, and a conflicting trusted key kept.
+
+A real backup bug was found and fixed: two imports in the same second collided on the backup folder name.
+
+**Real data:** at the user's request, the WinSCP configuration of their WinSCP under Whisky was found with **Find on This Mac** logic and imported through the same commit code the app uses. Only aggregate counts were printed:
+
+- 26 sites (12 SCP, 14 SFTP), none skipped, all valid, including 14 custom shells;
+- 3 PPK v3 keys (2 RSA, 1 Ed25519, no passphrase) converted for 19 sites, each deriving its original public key at mode 0600;
+- 34 Ed25519 host keys added with no conflicts;
+- the previous `known_hosts` backed up first; no password-like fields written.
+
+The import window was rendered offscreen. The universal 0.8.0 app was packaged, passed strict codesign verification, and launched and quit normally. **Logging in to the imported servers was not attempted**, and the import window was not clicked through in the running app.
+
 ## 0.7.0 — Commander and Login redesign
 
 Verified locally on 2026-10-21. The redesign follows the mockup the user approved. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **98 XCTest cases, zero failures, zero skips** (there are no new automated UI tests; the core is unchanged). The main window was rendered offscreen in light and dark mode, disconnected and with sample connected state. The Login sheet was rendered with grouped sample sites. Two layout faults found in those renders were fixed: clipped Rights columns, and "Zero KB" totals. The universal 0.7.0 app was packaged, passed strict ad-hoc codesign verification, and launched and quit normally.

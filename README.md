@@ -2,7 +2,7 @@
 
 A native macOS implementation of WinSCP's Commander workflow, built with SwiftUI, AppKit, and macOS's OpenSSH and libcurl. Free software under **GPL-3.0-or-later**.
 
-**Status: 0.7.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
+**Status: 0.8.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
 
 ## Build and run
 
@@ -41,6 +41,7 @@ For a development build, use `./scripts/build-app.sh --debug`. For an Apple Sili
 - UTF-8 remote text editor (4 MB maximum) with save-back and size/mtime conflict checks.
 - Reviewed, one-way local → remote synchronization by size/mtime. No remote deletions; symlinks are skipped; type conflicts block execution.
 - WinSCP's Advanced Site Settings, page for page: SCP/Shell (for example `sudo su -`), SFTP server command, timeouts, keepalives, IPv4/IPv6, SOCKS/HTTP/local proxies, SSH tunnels, TLS versions, cipher and key-exchange policies, rekey limits, authentication options, S3 options, notes and site colors. PuTTY-only and not-yet-applied options are shown disabled with a reason. See [Advanced Site Settings](docs/SETTINGS.md).
+- Import from Windows WinSCP: exported `WinSCP.ini`, `reg export` files, or WinSCP under Wine/Whisky/CrossOver on this Mac. Sites come with their folders and all Advanced settings; passphrase-free PuTTY `.ppk` keys are converted to OpenSSH format; trusted host keys are added. Existing data is backed up first and passwords are never imported. See [importing](docs/IMPORT.md).
 - Saved site settings and bounded session logs.
 
 SFTP uses binary protocol messages rather than shell commands or parsing `ls`. Spaces, quotes, Unicode, and newline characters in SFTP filenames are preserved. Invalid UTF-8 names are reported, not silently changed. SFTP and local filesystem operations reject symlink transfers. FTP paths reject control characters, and FTP relies on the file types reported by its server; recursive deletion requires Unix LIST types so an existing symlink can be removed without traversing it. See [FTP capabilities and limits](docs/FTP.md).

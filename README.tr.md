@@ -2,7 +2,7 @@
 
 WinSCP'nin çift panelli Commander iş akışını macOS'a taşımayı hedefleyen, SwiftUI/AppKit tabanlı açık kaynak proje. Lisans: **GPL-3.0-or-later**.
 
-**0.7.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
+**0.8.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
 
 ```sh
 ./scripts/swift.sh test
@@ -43,5 +43,13 @@ PuTTY'ye özgü veya henüz uygulanmayan ayarlar gri görünür ve nedenini beli
 - aktif panelde mavi yol şeridi, Type/Changed/Rights sütunları ve "X / Y içinde a / b" özeti
 - kuyruk/günlük paneli ve bağlantı süresini gösteren durum çubuğu
 - Login'de klasörlü site ağacı (`Klasör/Ad`), arama, ayrı protokol/şifreleme seçimi, açık Save / Save As… ve Manage
+
+0.8.0 ile Windows WinSCP'den içe aktarma geldi: **File ▸ Import from WinSCP…** veya Login'de **Tools ▸ Import Sites from WinSCP…**. Kaynak olabilecekler:
+
+- dışa aktarılmış `WinSCP.ini`
+- `reg export` dosyası
+- Wine, Whisky veya CrossOver altında çalışan WinSCP ("Find on This Mac")
+
+Siteler klasörleri ve tüm Advanced ayarlarıyla gelir. Şifresiz PuTTY `.ppk` anahtarları OpenSSH formatına çevrilir; WinSCP'de güvenilen host key'ler eklenir. Önce yedek alınır. Parolalar hiçbir zaman içe aktarılmaz. [Ayrıntılar](docs/IMPORT.md).
 
 Tam WinSCP betik uyumluluğu, tünelleme, aktarımı kaldığı yerden sürdürme ve tam özellik eşitliği henüz yoktur. Ayrıntılar: [özellik tablosu](docs/PARITY.md), [İngilizce kullanım ve mimari](README.md).

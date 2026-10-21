@@ -55,6 +55,7 @@ final class CommanderModel: ObservableObject {
     @Published private(set) var forwardHistory: [PaneSide: [String]] = [:]
     @Published private(set) var remoteHome = ""
     @Published private(set) var connectedAt: Date?
+    @Published var showImport = false
     private var syncLocal = ""
     private var syncRemote = ""
     private var syncRemoteSnapshot: [String: FileEntry] = [:]
@@ -78,7 +79,7 @@ final class CommanderModel: ObservableObject {
         do { let store = try SiteStore(); self.store = store; sites = try store.load() }
         catch { self.error = error.localizedDescription }
         refreshLocal()
-        appendLog("WinSCP for macOS 0.7.0 · Community development preview")
+        appendLog("WinSCP for macOS 0.8.0 · Community development preview")
     }
 
     func appendLog(_ text: String, error: Bool = false) {
@@ -109,6 +110,17 @@ final class CommanderModel: ObservableObject {
             guard let store else { throw ClientError.invalid("The site store is unavailable.") }
             try store.save(updated); sites = updated
         } catch { report(error) }
+    }
+
+    /// Saves imported WinSCP sites, converted keys and host keys (see `WinSCPImport.commit`).
+    func importFromWinSCP(_ chosen: [ImportedSite], hostKeys: [ImportedHostKey]) -> WinSCPImportSummary? {
+        do {
+            guard let store else { throw ClientError.invalid("The site store is unavailable.") }
+            let summary = try WinSCPImport.commit(chosen, hostKeys: hostKeys, into: store, existing: sites)
+            sites = try store.load()
+            appendLog("Imported \(summary.sites.count) WinSCP sites, \(summary.convertedKeys.count) converted keys and \(summary.hostKeysAdded) host keys.")
+            return summary
+        } catch { report(error); return nil }
     }
 
     func deleteSite(_ id: UUID) {
