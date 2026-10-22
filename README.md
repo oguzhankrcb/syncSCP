@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.17.0-blue" alt="Version 0.17.0"/>
+  <img src="https://img.shields.io/badge/version-0.18.0-blue" alt="Version 0.18.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="Platform macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal binary"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commander workflow to the Mac: a local and a remote pane, a transfer queue, per-site Advanced settings and a built-in SSH terminal. It uses the OpenSSH and libcurl that ship with macOS, keeps its own strict host-key store, and never writes passwords to disk. No account, no subscription, no telemetry.
 
-> **Status: 0.17.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
+> **Status: 0.18.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
 
 ## ⚡ Coming from WinSCP
 
@@ -82,11 +82,15 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 
 ### 💻 SSH Terminal
 
-- Session ▸ **Open Terminal** (⌘T) opens an interactive SSH login to the connected site in its own window
+- Terminal ▸ **Open Terminal** (⌘T) opens an interactive SSH login to the connected site in its own window
 - Starts in the folder shown in the remote pane, through the site's SCP shell (for example `sudo su -`) when one is set
 - Same Advanced settings, proxy, tunnel and strict `known_hosts` check as file sessions
 - Passwords, key passphrases and sudo prompts are answered in the terminal and never stored
 - **Open in Terminal.app** (⌘⇧T) runs the same login in macOS Terminal
+- Terminal windows group as **tabs** (the tab bar's + opens another login); **Split Right** (⌘D) and **Split Down** (⌃⌘D) put more logins side by side; **Find** (⌘F, ⌘G)
+- Open a terminal straight from the Login site list, without a file session
+- **Snippets**: saved commands typed into the focused pane from Terminal ▸ Snippets
+- **Port forwarding** (⇧⌘P): saved per site, `localhost:port → host:port` through the server, started and stopped from one list
 - Choose any monospaced font, including Nerd Fonts for icon prompts; follows light and dark mode; Option types characters such as @ and |
 
 ### 🌐 Protocols

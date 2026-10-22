@@ -180,6 +180,8 @@ public struct SiteSettings: Codable, Equatable, Sendable {
     // Note and color
     public var note = ""
     public var color = ""
+    /// Saved SSH local port forwards for this site (Session ▸ Port Forwarding).
+    public var portForwards: [PortForward] = []
 
     public init() {}
 
@@ -280,6 +282,7 @@ public struct SiteSettings: Codable, Equatable, Sendable {
         load(.bugIgnore2, &bugIgnore2)
         load(.bugWinAdj, &bugWinAdj)
         load(.note, &note)
+        load(.portForwards, &portForwards)
         load(.color, &color)
     }
 

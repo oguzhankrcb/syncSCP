@@ -59,7 +59,8 @@ public struct SSHConfiguration: Sendable {
         return args
     }
 
-    var environment: [String: String] {
+    /// The askpass variables for this configuration (empty without a credential).
+    public var environment: [String: String] {
         guard let executable = askpassExecutable, let id = credentialID else { return [:] }
         return ["SSH_ASKPASS": executable, "SSH_ASKPASS_REQUIRE": "force", "DISPLAY": "syncscp:0", "SYNCSCP_ASKPASS_ID": id]
     }

@@ -260,4 +260,42 @@ final class AdvancedSettingsIntegrationTests: XCTestCase {
         let output = try terminalOutput(SSHConfiguration(site: site(.sftp, port: sftpPort), knownHostsFile: empty.path).terminalLaunch(), input: "")
         XCTAssertTrue(output.contains("Host key verification failed"), output)
     }
+
+    func testPortForwardReachesAServiceBehindTheServer() throws {
+        // Forward a free local port to the SCP daemon as seen from the SFTP daemon; its SSH banner proves the path.
+        let probe = socket(AF_INET, SOCK_STREAM, 0); defer { close(probe) }
+        var address = sockaddr_in(); address.sin_family = sa_family_t(AF_INET); address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        _ = withUnsafePointer(to: &address) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(probe, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        _ = withUnsafeMutablePointer(to: &address) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(probe, $0, &length) } }
+        let localPort = Int(UInt16(bigEndian: address.sin_port)); close(probe)
+        let forward = PortForward(localPort: localPort, remoteHost: "127.0.0.1", remotePort: scpPort)
+        let configuration = SSHConfiguration(site: site(.sftp, port: sftpPort), knownHostsFile: fixture.appendingPathComponent("known hosts").path)
+        func start() throws -> Process {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh"); process.arguments = try configuration.forwardArguments(forward)
+            process.standardInput = FileHandle.nullDevice; process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+            try process.run(); return process
+        }
+        let tunnel = try start(); defer { if tunnel.isRunning { tunnel.terminate() } }
+        var banner = ""
+        for _ in 0..<50 where banner.isEmpty {
+            let connection = socket(AF_INET, SOCK_STREAM, 0)
+            var target = sockaddr_in(); target.sin_family = sa_family_t(AF_INET); target.sin_addr.s_addr = inet_addr("127.0.0.1"); target.sin_port = UInt16(localPort).bigEndian
+            let connected = withUnsafePointer(to: &target) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.connect(connection, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+            if connected == 0 {
+                var buffer = [UInt8](repeating: 0, count: 64)
+                let count = read(connection, &buffer, buffer.count)
+                if count > 0 { banner = String(decoding: buffer[0..<count], as: UTF8.self) }
+            }
+            close(connection)
+            if banner.isEmpty { usleep(100_000) }
+        }
+        XCTAssertTrue(banner.hasPrefix("SSH-2.0-"), "banner: \(banner)")
+        // A second forward on the same busy port fails at once instead of running uselessly.
+        let duplicate = try start()
+        duplicate.waitUntilExit()
+        XCTAssertNotEqual(duplicate.terminationStatus, 0)
+        XCTAssertTrue(tunnel.isRunning)
+    }
 }

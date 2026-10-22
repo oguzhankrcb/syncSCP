@@ -38,6 +38,7 @@ struct CommanderView: View {
         .sheet(item: $model.editor) { document in EditorSheet(model: model, document: document) }
         .sheet(isPresented: $model.showSync) { SynchronizationSheet(model: model) }
         .sheet(isPresented: $model.showImport) { ImportSheet(model: model) }
+        .sheet(isPresented: $model.showPortForwarding) { PortForwardingSheet(model: model) }
         .alert("Operation failed", isPresented: Binding(get: { model.error != nil && !model.showConnection && model.editor == nil }, set: { if !$0 { model.error = nil } })) {
             Button("OK") { model.error = nil }
         } message: { Text(model.error ?? "") }
@@ -128,7 +129,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.17.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.18.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)

@@ -63,6 +63,26 @@ struct SessionTab: Identifiable {
     let sessionToken: String
 }
 
+/// A running `ssh -N -L` process for one port forward.
+struct ActiveForward: Identifiable {
+    let id = UUID()
+    let site: Site
+    let forward: PortForward
+    let process = Process()
+    let output = ForwardOutput()
+    var state = "Starting…"
+    var stopping = false
+    var isRunning: Bool { process.isRunning }
+}
+
+/// ssh's error output for a forward, read on a background queue.
+final class ForwardOutput: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    func append(_ value: Data) { lock.lock(); data.append(value); if data.count > 8192 { data = data.suffix(8192) }; lock.unlock() }
+    var text: String { lock.lock(); defer { lock.unlock() }; return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) }
+}
+
 struct LogLine: Identifiable { let id = UUID(); let date = Date(); let text: String; let isError: Bool }
 
 @MainActor
@@ -98,6 +118,9 @@ final class CommanderModel: ObservableObject {
     @Published private(set) var remoteHome = ""
     @Published private(set) var connectedAt: Date?
     @Published var showImport = false
+    @Published var showPortForwarding = false
+    @Published var activeForwards: [ActiveForward] = []
+    @Published var snippets = TerminalSnippet.load() { didSet { TerminalSnippet.save(snippets) } }
     /// Saved sites that have a password in Keychain (Login ▸ Save password).
     @Published private(set) var sitesWithPasswords = Set<UUID>()
     @Published var externalEdits: [ExternalEditItem] = []
@@ -144,7 +167,7 @@ final class CommanderModel: ObservableObject {
         catch { self.error = error.localizedDescription }
         if custom == nil { refreshSavedPasswords() }
         refreshLocal()
-        appendLog("syncSCP 0.17.0 · Community development preview")
+        appendLog("syncSCP 0.18.0 · Community development preview")
     }
 
     /// Carries preferences over from the bundle identifier used before the rename to syncSCP.
@@ -377,21 +400,8 @@ final class CommanderModel: ObservableObject {
             defer { connecting = false }
             do {
                 try site.validate()
-                if site.transferProtocol.usesSSH {
-                    guard let store else { throw ClientError.invalid("The host key store is unavailable.") }
-                    // A tunnel's bastion is verified first; the target key is then read through it.
-                    let probe = SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path)
-                    for (target, role) in [(probe.tunnelSite, "tunnel host"), (site, "SSH server")] {
-                        guard let target, try await !HostTrust.isKnown(target, file: store.knownHostsFile) else { continue }
-                        let identity = try await HostTrust.scan(target, knownHostsFile: store.knownHostsFile)
-                        let alert = NSAlert()
-                        alert.messageText = "Trust this \(role)?"
-                        alert.informativeText = "\(identity.host)\n\(identity.algorithm)\n\n\(identity.fingerprint)\n\nVerify this fingerprint with the server administrator before connecting."
-                        alert.addButton(withTitle: "Trust and Connect"); alert.addButton(withTitle: "Cancel")
-                        guard alert.runModal() == .alertFirstButtonReturn else { status = "Connection cancelled"; return }
-                        try HostTrust.trust(identity, file: store.knownHostsFile)
-                    }
-                }
+                // A tunnel's bastion is verified first; the target key is then read through it.
+                guard try await confirmHostKeys(site) else { status = "Connection cancelled"; return }
                 let home = try await open(client, site: site, password: password, sessionToken: sessionToken)
                 let path = site.remotePath.isEmpty || site.remotePath == "." ? home : try await client.realpath(site.remotePath)
                 let entries = try await client.list(path)
@@ -851,47 +861,153 @@ final class CommanderModel: ObservableObject {
     var canOpenTerminal: Bool { connected && currentSite?.transferProtocol.usesSSH == true }
 
     /// WinSCP's Open Terminal: a separate SSH login to the current site, starting in the remote
-    /// folder shown in the panel. Passwords are asked for in the terminal; none are kept.
+    /// folder shown in the panel. Each pane or tab logs in on its own.
     func openTerminal(inTerminalApp: Bool = false) {
         guard canOpenTerminal, let site = currentSite else { return }
-        // A saved password logs the in-app terminal in through askpass, like the file session;
-        // the temporary Keychain item lives only until that terminal's ssh process ends.
-        guard !inTerminalApp, sitesWithPasswords.contains(site.id) else { openTerminal(site, credential: nil, inTerminalApp: inTerminalApp); return }
+        openTerminal(site: site, directory: remotePath, password: tabs.first { $0.id == activeTabID }?.password ?? "", inTerminalApp: inTerminalApp)
+    }
+
+    /// Login ▸ Terminal: no file session; the host key is checked first, like a login.
+    func openTerminal(fromLogin site: Site, password: String) {
+        guard site.transferProtocol.usesSSH, !connecting else { return }
         Task {
-            guard await SavedPasswords.authorize("log in to \(site.displayName) in a terminal"), let saved = SavedPasswords.read(site.id) else {
-                openTerminal(site, credential: nil, inTerminalApp: false); return
-            }
-            do { openTerminal(site, credential: try SessionCredential.store(saved), inTerminalApp: false) }
-            catch { report(error) }
+            do {
+                try site.validate()
+                guard try await confirmHostKeys(site) else { status = "Terminal cancelled"; return }
+                showConnection = false
+                let start = site.remotePath.isEmpty || site.remotePath == "." ? nil : site.remotePath
+                openTerminal(site: site, directory: start, password: password, inTerminalApp: false)
+            } catch { report(error) }
         }
     }
 
-    private func openTerminal(_ site: Site, credential: String?, inTerminalApp: Bool) {
-        guard let store else { return }
-        let release = { if let credential { _ = SessionCredential.remove(credential) } }
+    private func openTerminal(site: Site, directory: String?, password: String, inTerminalApp: Bool) {
+        let title = "\(site.username)@\(site.host)"
+        guard inTerminalApp else {
+            TerminalWindowController.open(title: title, launcher: terminalLauncher(site, directory: directory, password: password))
+            appendLog("Opened a terminal to \(title)\(directory.map { " in \($0)" } ?? "").")
+            return
+        }
         do {
-            let launch = try SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path,
-                                              askpassExecutable: credential == nil ? nil : Bundle.main.executablePath ?? CommandLine.arguments[0],
-                                              credentialID: credential).terminalLaunch(directory: remotePath)
-            let title = "\(site.username)@\(site.host)"
-            if inTerminalApp {
-                guard let terminalApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
-                    throw ClientError.invalid("Terminal.app was not found.")
-                }
-                // A private, self-deleting .command file: Terminal.app runs it without any automation permission.
-                let directory = FileManager.default.temporaryDirectory.appendingPathComponent("syncscp-terminal-" + UUID().uuidString, isDirectory: true)
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-                let file = directory.appendingPathComponent("ssh.command")
-                try Data(launch.commandFile.utf8).write(to: file, options: .withoutOverwriting)
-                try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: file.path)
-                NSWorkspace.shared.open([file], withApplicationAt: terminalApp, configuration: NSWorkspace.OpenConfiguration())
-                appendLog("Opened \(title) in Terminal.app.")
-            } else {
-                TerminalWindowController.open(launch, title: title, onEnd: release)
-                appendLog("Opened a terminal to \(title) in \(remotePath)\(credential == nil ? "" : " with the saved password").")
+            guard let store else { return }
+            let launch = try SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path).terminalLaunch(directory: directory)
+            guard let terminalApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
+                throw ClientError.invalid("Terminal.app was not found.")
             }
-        } catch { release(); report(error) }
+            // A private, self-deleting .command file: Terminal.app runs it without any automation permission.
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("syncscp-terminal-" + UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            let file = folder.appendingPathComponent("ssh.command")
+            try Data(launch.commandFile.utf8).write(to: file, options: .withoutOverwriting)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: file.path)
+            NSWorkspace.shared.open([file], withApplicationAt: terminalApp, configuration: NSWorkspace.OpenConfiguration())
+            appendLog("Opened \(title) in Terminal.app.")
+        } catch { report(error) }
     }
+
+    /// A known password (the tab's, the one typed at Login, or a saved one after Touch ID) logs
+    /// each terminal in through askpass; its temporary Keychain item lives until that ssh ends.
+    private func terminalLauncher(_ site: Site, directory: String?, password: String) -> TerminalLauncher {
+        return { [weak self] deliver in
+            Task { @MainActor in
+                guard let self, let store = self.store else { return }
+                var secret = password
+                if secret.isEmpty, self.sitesWithPasswords.contains(site.id),
+                   await SavedPasswords.authorize("log in to \(site.displayName) in a terminal"), let saved = SavedPasswords.read(site.id) { secret = saved }
+                do {
+                    let credential = secret.isEmpty ? nil : try SessionCredential.store(secret)
+                    let launch = try SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path,
+                                                      askpassExecutable: credential == nil ? nil : Bundle.main.executablePath ?? CommandLine.arguments[0],
+                                                      credentialID: credential).terminalLaunch(directory: directory)
+                    deliver(launch, credential.map { id in { _ = SessionCredential.remove(id) } })
+                } catch { self.report(error) }
+            }
+        }
+    }
+
+    /// Asks before trusting an unknown host key (the tunnel's bastion first); false if the user declines.
+    private func confirmHostKeys(_ site: Site) async throws -> Bool {
+        guard site.transferProtocol.usesSSH else { return true }
+        guard let store else { throw ClientError.invalid("The host key store is unavailable.") }
+        let probe = SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path)
+        for (target, role) in [(probe.tunnelSite, "tunnel host"), (site, "SSH server")] {
+            guard let target, try await !HostTrust.isKnown(target, file: store.knownHostsFile) else { continue }
+            let identity = try await HostTrust.scan(target, knownHostsFile: store.knownHostsFile)
+            let alert = NSAlert()
+            alert.messageText = "Trust this \(role)?"
+            alert.informativeText = "\(identity.host)\n\(identity.algorithm)\n\n\(identity.fingerprint)\n\nVerify this fingerprint with the server administrator before connecting."
+            alert.addButton(withTitle: "Trust and Connect"); alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return false }
+            try HostTrust.trust(identity, file: store.knownHostsFile)
+        }
+        return true
+    }
+
+    // MARK: Port forwarding
+
+    /// Saves a site's port-forward list (and keeps open tabs of that site in step).
+    func setPortForwards(_ forwards: [PortForward], for siteID: UUID) {
+        if var saved = sites.first(where: { $0.id == siteID }) { saved.settings.portForwards = forwards; saveSite(saved) }
+        if currentSite?.id == siteID { currentSite?.settings.portForwards = forwards }
+        for index in tabs.indices where tabs[index].site.id == siteID { tabs[index].site.settings.portForwards = forwards }
+    }
+
+    /// Starts `ssh -N -L` for one forward; the tab's or a saved password logs it in through askpass.
+    func startForward(_ forward: PortForward, site: Site) {
+        guard !activeForwards.contains(where: { $0.forward.id == forward.id && $0.isRunning }) else { return }
+        Task {
+            do {
+                try site.validate(); try forward.validate()
+                guard let store, try await confirmHostKeys(site) else { return }
+                var secret = tabs.first { $0.site.id == site.id }?.password ?? ""
+                if secret.isEmpty, sitesWithPasswords.contains(site.id),
+                   await SavedPasswords.authorize("open a port forward to \(site.displayName)"), let saved = SavedPasswords.read(site.id) { secret = saved }
+                let credential = secret.isEmpty ? nil : try SessionCredential.store(secret)
+                let configuration = SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path,
+                                                     askpassExecutable: credential == nil ? nil : Bundle.main.executablePath ?? CommandLine.arguments[0], credentialID: credential)
+                let active = ActiveForward(site: site, forward: forward)
+                let process = active.process, errors = Pipe(), output = active.output
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+                process.arguments = try configuration.forwardArguments(forward)
+                process.environment = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("SYNCSCP_") && !$0.key.hasPrefix("SSH_ASKPASS") }
+                    .merging(configuration.environment) { _, configured in configured }
+                process.standardInput = FileHandle.nullDevice; process.standardOutput = FileHandle.nullDevice; process.standardError = errors
+                errors.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    if data.isEmpty { handle.readabilityHandler = nil } else { output.append(data) }
+                }
+                let id = active.id
+                let release = { if let credential { _ = SessionCredential.remove(credential) } }
+                process.terminationHandler = { [weak self] ended in
+                    Task { @MainActor [weak self] in
+                        release()
+                        guard let self, let index = self.activeForwards.firstIndex(where: { $0.id == id }) else { return }
+                        let detail = output.text.isEmpty ? "ssh exited with status \(ended.terminationStatus)" : output.text
+                        self.activeForwards[index].state = self.activeForwards[index].stopping ? "Stopped" : "Failed: \(detail)"
+                        if !self.activeForwards[index].stopping { self.appendLog("Port forward \(forward.summary) via \(site.host) ended: \(detail)", error: true) }
+                    }
+                }
+                try process.run()
+                activeForwards.append(active)
+                appendLog("Starting port forward \(forward.summary) via \(site.username)@\(site.host).")
+                // Authentication is long over after a few seconds; a forward that survives is listening.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 30) { release() }
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                if let index = activeForwards.firstIndex(where: { $0.id == id }), process.isRunning { activeForwards[index].state = "Active" }
+            } catch { report(error) }
+        }
+    }
+
+    func stopForward(_ id: UUID) {
+        guard let index = activeForwards.firstIndex(where: { $0.id == id }) else { return }
+        activeForwards[index].stopping = true
+        if activeForwards[index].process.isRunning { activeForwards[index].process.terminate() } else { activeForwards.remove(at: index) }
+    }
+
+    func clearEndedForwards() { activeForwards.removeAll { !$0.isRunning } }
+
+    /// On quit: forwards are child ssh processes and would otherwise outlive the app.
+    func stopAllForwards() { for forward in activeForwards where forward.isRunning { forward.process.terminate() } }
 
     func previewSynchronization() {
         guard connected, !busy else { return }

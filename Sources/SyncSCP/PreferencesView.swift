@@ -36,9 +36,22 @@ struct PreferencesView: View {
                     ForEach(monospacedFamilies, id: \.self) { Text($0).tag($0) }
                 }
                 Stepper(value: $terminalFontSize, in: 8...36, step: 1) { LabeledContent("Size", value: "\(Int(terminalFontSize)) pt") }
-                Text("Session ▸ Open Terminal (⌘T) logs in again with the site's settings and starts in the remote folder, through the SCP shell (for example sudo su -) when one is set. Prompts that use icon glyphs need a Nerd Font, such as MesloLGS NF.")
+                Text("Terminal ▸ Open Terminal (⌘T) logs in again with the site's settings and starts in the remote folder, through the SCP shell (for example sudo su -) when one is set. Prompts that use icon glyphs need a Nerd Font, such as MesloLGS NF.")
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             } header: { Text("Terminal") }
+            Section {
+                ForEach($model.snippets) { $snippet in
+                    HStack(spacing: 8) {
+                        TextField("Name", text: $snippet.name).frame(width: 120)
+                        TextField("Command", text: $snippet.command).font(.system(size: 12, design: .monospaced))
+                        Toggle("Run", isOn: $snippet.run).toggleStyle(.checkbox).help("Press Return after inserting")
+                        Button { model.snippets.removeAll { $0.id == snippet.id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
+                    }.textFieldStyle(.roundedBorder).labelsHidden()
+                }
+                Button("Add Snippet") { model.snippets.append(TerminalSnippet(name: "", command: "")) }
+                Text("Terminal ▸ Snippets types the command into the focused terminal pane; with Run it also presses Return.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } header: { Text("Snippets") }
             Section {
                 Stepper(value: $maxTransfers, in: 1...8) { LabeledContent("Transfers at the same time", value: "\(maxTransfers)") }
                 Stepper(value: $retries, in: 0...10) { LabeledContent("Retries after a lost connection", value: retries == 0 ? "Off" : "\(retries)") }
@@ -58,7 +71,7 @@ struct PreferencesView: View {
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             } header: { Text("Passwords") }
         }
-        .formStyle(.grouped).frame(width: 560).padding(.vertical, 8)
+        .formStyle(.grouped).frame(width: 620, height: 640).padding(.vertical, 8)
     }
 
     private func forgetAll() {

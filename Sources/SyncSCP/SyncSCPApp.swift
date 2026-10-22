@@ -69,20 +69,38 @@ struct SyncSCPApp: App {
                 Button("Synchronize…") { model.previewSynchronization() }.keyboardShortcut("s", modifiers: [.command, .shift]).disabled(!model.connected)
                 Button("Refresh") { model.refresh() }.keyboardShortcut("r")
                 Divider()
-                Button("Open Terminal") { model.openTerminal() }.keyboardShortcut("t").disabled(!model.canOpenTerminal)
-                Button("Open in Terminal.app") { model.openTerminal(inTerminalApp: true) }.keyboardShortcut("t", modifiers: [.command, .shift]).disabled(!model.canOpenTerminal)
-                Divider()
                 Toggle("Show Hidden Files", isOn: $model.showHidden).keyboardShortcut(".", modifiers: [.command, .shift])
                 Button("Session Log") { model.bottomTab = .log; model.showBottom = true }
                 Divider()
                 Button("Show Next Session Tab") { model.activateNeighborTab(1) }.keyboardShortcut("]", modifiers: [.command, .shift]).disabled(!model.canSwitchTabs)
                 Button("Show Previous Session Tab") { model.activateNeighborTab(-1) }.keyboardShortcut("[", modifiers: [.command, .shift]).disabled(!model.canSwitchTabs)
             }
+            CommandMenu("Terminal") {
+                Button("Open Terminal") { model.openTerminal() }.keyboardShortcut("t").disabled(!model.canOpenTerminal)
+                Button("Open in Terminal.app") { model.openTerminal(inTerminalApp: true) }.keyboardShortcut("t", modifiers: [.command, .shift]).disabled(!model.canOpenTerminal)
+                Divider()
+                // Sent through the responder chain: they act on the terminal window in front.
+                Button("Split Right") { NSApp.sendAction(#selector(TerminalWindowController.splitRight(_:)), to: nil, from: nil) }.keyboardShortcut("d")
+                Button("Split Down") { NSApp.sendAction(#selector(TerminalWindowController.splitDown(_:)), to: nil, from: nil) }.keyboardShortcut("d", modifiers: [.command, .control])
+                Button("Close Pane") { NSApp.sendAction(#selector(TerminalWindowController.closePane(_:)), to: nil, from: nil) }.keyboardShortcut("w", modifiers: [.command, .option])
+                Divider()
+                Button("Find…") { findInTerminal(.showFindPanel) }.keyboardShortcut("f")
+                Button("Find Next") { findInTerminal(.next) }.keyboardShortcut("g")
+                Button("Find Previous") { findInTerminal(.previous) }.keyboardShortcut("g", modifiers: [.command, .shift])
+                Divider()
+                Menu("Snippets") {
+                    ForEach(model.snippets) { snippet in Button(snippet.name.isEmpty ? snippet.command : snippet.name) { TerminalWindowController.send(snippet) } }
+                    if !model.snippets.isEmpty { Divider() }
+                    Button("Edit Snippets…") { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
+                }
+                Divider()
+                Button("Port Forwarding…") { model.showPortForwarding = true }.keyboardShortcut("p", modifiers: [.command, .shift])
+            }
             CommandGroup(replacing: .appInfo) {
                 Button("About syncSCP") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "syncSCP",
-                        .applicationVersion: "0.17.0 — Development Preview",
+                        .applicationVersion: "0.18.0 — Development Preview",
                         .credits: NSAttributedString(string: "An independent macOS file manager inspired by WinSCP's workflows; not affiliated with the WinSCP project.\nWinSCP is by Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }
@@ -101,6 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     weak var model: CommanderModel?
+
+    func applicationWillTerminate(_ notification: Notification) { model?.stopAllForwards() }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if let model = model, model.pendingCount > 0 {
@@ -153,4 +173,10 @@ enum SessionCredential {
         let status = SecItemDelete([kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: id] as CFDictionary)
         return status == errSecSuccess || status == errSecItemNotFound
     }
+}
+
+/// Find in the front terminal: SwiftTerm handles the standard find-panel actions.
+private func findInTerminal(_ action: NSFindPanelAction) {
+    let sender = NSMenuItem(); sender.tag = Int(action.rawValue)
+    NSApp.sendAction(#selector(NSTextView.performFindPanelAction(_:)), to: nil, from: sender)
 }

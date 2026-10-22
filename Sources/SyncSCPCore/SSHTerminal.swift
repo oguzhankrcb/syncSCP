@@ -40,3 +40,40 @@ extension SSHConfiguration {
         return SSHTerminalLaunch(executable: "/usr/bin/ssh", arguments: arguments, environment: environment.map { "\($0.key)=\($0.value)" }.sorted())
     }
 }
+
+/// An SSH local port forward, like PuTTY's Tunnels page: `127.0.0.1:localPort` on this Mac
+/// reaches `remoteHost:remotePort` as seen from the server.
+public struct PortForward: Codable, Equatable, Hashable, Identifiable, Sendable {
+    public var id = UUID()
+    public var name: String
+    public var localPort: Int
+    public var remoteHost: String
+    public var remotePort: Int
+
+    public init(name: String = "", localPort: Int, remoteHost: String = "127.0.0.1", remotePort: Int) {
+        self.name = name; self.localPort = localPort; self.remoteHost = remoteHost; self.remotePort = remotePort
+    }
+
+    public var summary: String { "localhost:\(localPort) → \(remoteHost):\(remotePort)" }
+
+    public func validate() throws {
+        guard (1...65535).contains(localPort), (1...65535).contains(remotePort) else { throw ClientError.invalid("Ports must be between 1 and 65535.") }
+        let host = remoteHost.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty, !host.hasPrefix("-"), host.unicodeScalars.allSatisfy({ !CharacterSet.whitespacesAndNewlines.contains($0) && $0 != "/" && $0 != "@" }) else {
+            throw ClientError.invalid("Enter a host name or address for the destination.")
+        }
+    }
+}
+
+extension SSHConfiguration {
+    /// `ssh -N -L` for one forward, bound to the loopback address only. ClearAllForwardings is
+    /// left out (it would cancel -L); ExitOnForwardFailure makes a busy local port fail at once.
+    public func forwardArguments(_ forward: PortForward) throws -> [String] {
+        try forward.validate()
+        var arguments = try baseArguments()
+        if let index = arguments.firstIndex(of: "ClearAllForwardings=yes") { arguments.removeSubrange(index - 1...index) }
+        let host = forward.remoteHost.contains(":") ? "[\(forward.remoteHost)]" : forward.remoteHost
+        return arguments + ["-N", "-o", "ExitOnForwardFailure=yes", "-o", "ServerAliveCountMax=3",
+                            "-L", "127.0.0.1:\(forward.localPort):\(host):\(forward.remotePort)", "--", site.host]
+    }
+}

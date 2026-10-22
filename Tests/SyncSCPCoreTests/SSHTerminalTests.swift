@@ -71,4 +71,21 @@ final class SSHTerminalTests: XCTestCase {
         XCTAssertFalse(launch.environment.contains { $0.contains("inherited") })
         XCTAssertFalse(launch.arguments.contains("BatchMode=yes"))
     }
+
+    func testPortForwardArgumentsKeepOnlyTheRequestedLoopbackForward() throws {
+        var forward = PortForward(name: "db", localPort: 5433, remoteHost: "10.0.0.5", remotePort: 5432)
+        let site = Site(host: "example.com", username: "deploy", privateKey: key.path, transferProtocol: .sftp)
+        let configuration = SSHConfiguration(site: site, knownHostsFile: "/tmp/known hosts")
+        let arguments = try configuration.forwardArguments(forward)
+        XCTAssertFalse(arguments.contains("ClearAllForwardings=yes"), "it would cancel -L")
+        XCTAssertTrue(arguments.contains("ExitOnForwardFailure=yes") && arguments.contains("-N") && arguments.contains("BatchMode=yes"))
+        XCTAssertTrue(arguments.contains("StrictHostKeyChecking=yes") && arguments.contains("PermitLocalCommand=no"))
+        XCTAssertEqual(Array(arguments.suffix(4)), ["-L", "127.0.0.1:5433:10.0.0.5:5432", "--", "example.com"])
+        forward.remoteHost = "::1"
+        XCTAssertTrue(try configuration.forwardArguments(forward).contains("127.0.0.1:5433:[::1]:5432"))
+        for (host, local, remote) in [("-oProxyCommand=x", 1, 2), ("a b", 1, 2), ("", 1, 2), ("db", 0, 2), ("db", 1, 70000), ("user@db", 1, 2)] {
+            XCTAssertThrowsError(try configuration.forwardArguments(PortForward(localPort: local, remoteHost: host, remotePort: remote)), host)
+        }
+        XCTAssertEqual(try JSONDecoder().decode(SiteSettings.self, from: JSONEncoder().encode({ var s = SiteSettings(); s.portForwards = [forward]; return s }())).portForwards, [forward])
+    }
 }

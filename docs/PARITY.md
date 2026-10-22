@@ -7,7 +7,8 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | Session tabs | Implemented | Several connections at once, each with its own remote/local folders and history; queue jobs stay on their connection; Duplicate Session; workspaces (saved tab sets) remain |
 | Commander dual panes | Implemented | WinSCP layout with per-pane navigation/action bars, back/forward history, Type/Changed/Rights columns, selection totals, drag and drop between panes and from Finder, F2/F4/F5/F7/F8 and Go-menu shortcuts, the ".." row and a clickable path strip; dragging remote items to Finder, F6 move, directory tree and selection masks remain |
 | Explorer interface | Missing | Single-panel mode |
-| Open Terminal / Open in PuTTY | Implemented | Interactive `ssh -t` login in a SwiftTerm window or Terminal.app, starting in the remote folder through the site's shell; WinSCP's non-interactive command console, custom commands and saved terminal profiles remain |
+| Open Terminal / Open in PuTTY | Implemented | Interactive `ssh -t` logins in SwiftTerm windows (tabs, split panes, find, snippets) or Terminal.app, from a session or straight from Login, starting in the remote folder through the site's shell; WinSCP's non-interactive command console and custom commands remain |
+| Port forwarding (PuTTY Tunnels) | Implemented | Saved local forwards per site, loopback only, ExitOnForwardFailure; remote and dynamic (SOCKS) forwards remain |
 | SFTP | Implemented, v3 | More server interoperability, extensions, pipelining, non-UTF-8 policy |
 | SSH key / agent / password | Implemented | Opt-in saved passwords in Keychain with optional Touch ID, also imported from WinSCP; hardware-key and keyboard-interactive coverage, GSSAPI remain |
 | Host-key verification | Implemented | Key rotation UI, import/export, SSH config integration |

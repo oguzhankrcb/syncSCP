@@ -53,6 +53,10 @@ struct ConnectionSheet: View {
                 if model.connecting { ProgressView().controlSize(.small) }
                 Link("Help", destination: URL(string: "https://winscp.net/eng/docs/ui_login")!).font(.system(size: 12))
                 Button("Close") { password = ""; sessionToken = ""; dismiss() }.keyboardShortcut(.cancelAction).disabled(model.connecting)
+                if site.transferProtocol.usesSSH {
+                    Button { model.error = nil; model.openTerminal(fromLogin: site, password: password); password = "" } label: { Label("Terminal", systemImage: "terminal") }
+                        .disabled(!model.canConnect).help("Open an SSH terminal to this site without a file session")
+                }
                 Button("Login") {
                     model.error = nil
                     do { try site.validate() } catch { model.report(error); return }

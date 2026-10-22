@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.17.0-blue" alt="Sürüm 0.17.0"/>
+  <img src="https://img.shields.io/badge/version-0.18.0-blue" alt="Sürüm 0.18.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygulamasıdır (SwiftUI ve AppKit): yerel ve uzak panel, aktarım kuyruğu, site başına Advanced ayarlar ve yerleşik SSH terminali. macOS ile gelen OpenSSH ve libcurl'ü kullanır, kendi sıkı host key deposunu tutar ve parolaları hiçbir zaman diske yazmaz. Hesap, abonelik veya telemetri yok.
 
-> **Durum: 0.17.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
+> **Durum: 0.18.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
 
 ## ⚡ WinSCP'den geçenler için
 
@@ -82,11 +82,15 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 
 ### 💻 SSH terminali
 
-- Session ▸ **Open Terminal** (⌘T), bağlı siteye ayrı bir pencerede etkileşimli SSH girişi açar
+- Terminal ▸ **Open Terminal** (⌘T), bağlı siteye ayrı bir pencerede etkileşimli SSH girişi açar
 - Uzak panelde açık klasörde başlar; SCP shell ayarı (örneğin `sudo su -`) varsa onun üzerinden
 - Dosya oturumuyla aynı Advanced ayarlar, proxy, tunnel ve sıkı `known_hosts` kontrolü
 - Parola, anahtar parolası ve sudo soruları terminalin içinde sorulur; hiçbiri saklanmaz
 - **Open in Terminal.app** (⌘⇧T) aynı girişi macOS Terminal'de açar
+- Terminal pencereleri **sekme** olarak gruplanır (sekme çubuğundaki + yeni giriş açar); **Split Right** (⌘D) ve **Split Down** (⌃⌘D) ile yan yana/alt alta girişler; **Find** (⌘F, ⌘G)
+- Dosya oturumu açmadan, Login'deki site listesinden doğrudan terminal
+- **Snippet'ler**: kayıtlı komutlar Terminal ▸ Snippets ile odaktaki panele yazılır
+- **Port yönlendirme** (⇧⌘P): site başına kayıtlı `localhost:port → host:port` kuralları, tek listeden başlat/durdur
 - İstediğiniz monospace font (ikonlu prompt'lar için Nerd Font dahil); açık/koyu temaya uyar; Option tuşu @ ve | gibi karakterleri yazar
 
 ### 🌐 Protokoller

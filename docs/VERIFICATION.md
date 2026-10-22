@@ -1,5 +1,14 @@
 # Verification record
 
+## 0.18.0 — Terminal tabs, split panes, find, snippets and port forwarding
+
+Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **126 XCTest cases, zero failures, zero skips**.
+
+- New unit test: port-forward arguments keep only the requested loopback `-L`, drop ClearAllForwardings (which would cancel it), keep strict host keys, bracket IPv6 destinations and reject option-like or malformed hosts and ports; forwards round-trip in site settings.
+- New integration test: a forward through the SFTP daemon to the SCP daemon's port returned an `SSH-2.0-` banner on the local port; a second forward on the same port exited at once with an error.
+- A terminal window was opened against the SCP-only daemon (through a `sudo su -` stand-in), split right and then down: three separate logins in a left / top-right / bottom-right layout; a snippet ran in the focused pane; closing the window ended all three.
+- **Not tried by me:** Find in the running app, the tab bar's + button, Close Pane's confirmation, Login ▸ Terminal, and the Port Forwarding window itself (its ssh command is the tested one).
+
 ## 0.17.0 — Background transfers, retry and resume
 
 Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **124 XCTest cases, zero failures, zero skips**.
