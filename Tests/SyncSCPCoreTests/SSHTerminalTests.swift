@@ -60,4 +60,15 @@ final class SSHTerminalTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path), "the script removes itself and its private folder")
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("pwned").path))
     }
+
+    func testSavedPasswordLoginPassesOnlyItsOwnAskpass() throws {
+        let site = Site(host: "example.com", username: "deploy", transferProtocol: .scp)
+        let launch = try SSHConfiguration(site: site, knownHostsFile: "/tmp/known hosts", askpassExecutable: "/Applications/syncSCP.app/Contents/MacOS/SyncSCP", credentialID: "ID-1")
+            .terminalLaunch(environment: ["SSH_ASKPASS": "/inherited", "SYNCSCP_ASKPASS_ID": "inherited", "HOME": "/Users/me"])
+        XCTAssertTrue(launch.environment.contains("SSH_ASKPASS=/Applications/syncSCP.app/Contents/MacOS/SyncSCP"))
+        XCTAssertTrue(launch.environment.contains("SYNCSCP_ASKPASS_ID=ID-1"))
+        XCTAssertTrue(launch.environment.contains("SSH_ASKPASS_REQUIRE=force"))
+        XCTAssertFalse(launch.environment.contains { $0.contains("inherited") })
+        XCTAssertFalse(launch.arguments.contains("BatchMode=yes"))
+    }
 }

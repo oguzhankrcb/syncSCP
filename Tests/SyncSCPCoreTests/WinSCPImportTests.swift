@@ -123,7 +123,9 @@ final class WinSCPImportTests: XCTestCase {
         XCTAssertEqual(s.rekeyMinutes, 30); XCTAssertEqual(s.rekeyData, "512M")
         XCTAssertEqual(s.timeOffsetMinutes, 60); XCTAssertFalse(s.timeOffsetAuto); XCTAssertEqual(s.dstMode, .win); XCTAssertEqual(s.utf8, .on)
         let warnings = db.warnings.joined(separator: "\n")
-        XCTAssertTrue(warnings.contains("password was not imported"), warnings)
+        // The sample's Password value is truncated, so it cannot be decoded and the user is told.
+        XCTAssertTrue(warnings.contains("password could not be read"), warnings)
+        XCTAssertNil(db.password)
         XCTAssertTrue(warnings.contains("db.ppk") && warnings.contains("puttygen"), warnings)
         XCTAssertTrue(warnings.contains("Windows path"), warnings)
         XCTAssertTrue(warnings.contains("dummy commands"), warnings)
@@ -301,5 +303,50 @@ final class WinSCPImportTests: XCTestCase {
         XCTAssertEqual(result.sites.first?.site.transferProtocol, .sftp)
         XCTAssertEqual(result.sites.first?.site.settings.note, "Café \"quoted\"")
         XCTAssertEqual(result.hostKeys.map(\.knownHostsLine), ["wine.example.com \(Self.ed25519.1)\n"])
+    }
+
+    /// WinSCP's `EncryptPassword` (simple algorithm): flag, internal byte, length, shift, random
+    /// padding, then key + password; each byte stored as hex of `~byte ^ 0xA3`.
+    private func winSCPEncoded(_ password: String, key: String, flagged: Bool = true, shift: Int = 5) -> String {
+        func encoded(_ byte: UInt8) -> String { String(format: "%02X", ~byte ^ 0xA3) }
+        let plain = Array(((flagged ? key : "") + password).utf8)
+        var text = flagged ? encoded(0xFF) + encoded(0) : ""
+        text += encoded(UInt8(plain.count)) + encoded(UInt8(shift))
+        for _ in 0..<shift { text += encoded(.random(in: 0...255)) }
+        for byte in plain { text += encoded(byte) }
+        for _ in 0..<7 { text += encoded(.random(in: 0...255)) }
+        return text
+    }
+
+    func testSavedPasswordsDecodeLikeWinSCP() throws {
+        let key = "deploy" + "db-1.example.com"
+        XCTAssertEqual(WinSCPImport.decodePassword(winSCPEncoded("p@ss wörd;$1", key: key), key: key), "p@ss wörd;$1")
+        XCTAssertEqual(WinSCPImport.decodePassword(winSCPEncoded("old-format", key: key, flagged: false), key: key), "old-format")
+        XCTAssertEqual(WinSCPImport.decodePassword(winSCPEncoded("p", key: key, shift: 0).lowercased(), key: key), "p")
+        XCTAssertNil(WinSCPImport.decodePassword(winSCPEncoded("secret", key: key), key: "someone" + "else.example.com"), "the user+host prefix must match")
+        for junk in ["", "A35C435B9556B1237C2D2E2F", "XYZ0", "ABC", String(repeating: "F", count: 64)] {
+            XCTAssertNil(WinSCPImport.decodePassword(junk, key: key), junk)
+        }
+        let ini = """
+        [Sessions\\Encoded]
+        HostName=db-1.example.com
+        UserName=deploy
+        Password=\(winSCPEncoded("s3cret!", key: key))
+        [Sessions\\Plain]
+        HostName=plain.example.com
+        UserName=ops
+        PasswordPlain=plain%20pass
+        [Sessions\\Master]
+        HostName=master.example.com
+        UserName=ops
+        Password=\(winSCPEncoded("hidden", key: "other"))
+        """
+        let sites = try WinSCPImport.parse(Data(ini.utf8)).sites
+        XCTAssertEqual(sites.first { $0.site.name == "Encoded" }?.password, "s3cret!")
+        XCTAssertEqual(sites.first { $0.site.name == "Plain" }?.password, "plain pass")
+        let master = try XCTUnwrap(sites.first { $0.site.name == "Master" })
+        XCTAssertNil(master.password)
+        XCTAssertTrue(master.warnings.contains { $0.contains("master password") })
+        XCTAssertFalse(sites.first { $0.site.name == "Encoded" }!.warnings.contains { $0.lowercased().contains("password") })
     }
 }

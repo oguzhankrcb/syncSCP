@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.15.0-blue" alt="Version 0.15.0"/>
+  <img src="https://img.shields.io/badge/version-0.16.0-blue" alt="Version 0.16.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="Platform macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal binary"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commander workflow to the Mac: a local and a remote pane, a transfer queue, per-site Advanced settings and a built-in SSH terminal. It uses the OpenSSH and libcurl that ship with macOS, keeps its own strict host-key store, and never writes passwords to disk. No account, no subscription, no telemetry.
 
-> **Status: 0.15.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
+> **Status: 0.16.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
 
 ## ⚡ Coming from WinSCP
 
@@ -60,6 +60,7 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 | SCP through `sudo su -`              | Yes, one persistent shell                       | Yes                       |
 | Advanced Site Settings               | Every page; most options applied ([details](docs/SETTINGS.md)) | Yes        |
 | Import WinSCP sites, keys, host keys | Yes (`WinSCP.ini`, `reg export`, Wine/Whisky)   | —                         |
+| Saved passwords                      | Opt-in, macOS Keychain, optional Touch ID       | Encrypted in its config   |
 | External editors with upload on save | Yes                                             | Yes                       |
 | Synchronization                      | One-way, reviewed                               | One- and two-way          |
 | Scripting / automation               | Not yet                                         | Yes                       |
@@ -108,13 +109,14 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 
 - WinSCP-style Login: sites grouped in folders, search, separate protocol and encryption choices, Save / Save As… and Manage
 - WinSCP's **Advanced Site Settings**, page for page: SCP/Shell, SFTP server, timeouts, keepalives, IPv4/IPv6, SOCKS/HTTP/local proxies, SSH tunnels, TLS versions, cipher and key-exchange policy, rekey limits, authentication, S3 options, notes and colors. Options that cannot apply on macOS are shown disabled with a reason ([details](docs/SETTINGS.md))
-- **Import from WinSCP**: `WinSCP.ini`, `reg export` files, or WinSCP running under Wine, Whisky or CrossOver on this Mac. Sites keep their folders and settings, passphrase-free PuTTY keys become OpenSSH keys, trusted host keys come along, and your data is backed up first ([details](docs/IMPORT.md))
+- **Import from WinSCP**: `WinSCP.ini`, `reg export` files, or WinSCP running under Wine, Whisky or CrossOver on this Mac. Sites keep their folders and settings, passphrase-free PuTTY keys become OpenSSH keys, trusted host keys come along, saved passwords can go into your Keychain if you choose, sites you already have are not duplicated, and your data is backed up first ([details](docs/IMPORT.md))
 
 ### 🔐 Security and Privacy
 
 - Host keys live in the app's own `known_hosts`; a changed key fails, with no insecure bypass
 - SSH config loading, forwarding and local commands are disabled (`-F /dev/null`)
-- Passwords are never written to site files; an SSH password sits in Keychain only for the connection attempt
+- **Save password** is opt-in, per site, in your macOS Keychain on this Mac only; site files never contain passwords. Settings can require Touch ID or your Mac password before a saved password is used
+- Unsaved passwords sit in Keychain only for the connection attempt; a saved one also logs the built-in terminal in
 - Everything stays on your Mac: `~/Library/Application Support/SyncSCP`
 
 ## 📸 Screenshots

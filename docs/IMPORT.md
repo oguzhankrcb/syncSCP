@@ -31,7 +31,9 @@ Nothing is written until **Import**. The preview lists every site with its proto
 
 ## What is not imported
 
-- Passwords of any kind, S3 session tokens and the file-encryption key are never imported; each affected site says so.
+- **Saved passwords (0.16.0):** WinSCP's `Password` (its reversible "simple" encoding, used when no master password is set) and `PasswordPlain` are decoded in memory. The decoded text must start with the site's user name + host name, as upstream requires, or it is rejected. Nothing is stored unless you tick **Save … saved passwords in my Keychain**; then each goes into the macOS Keychain under that site, never into `sites.json`. Values protected by a master password cannot be read and the site says so.
+- Sites that already exist (same name, protocol, host, port and user) are marked and not selected, so importing again does not duplicate them; their passwords can still be saved.
+- Proxy and tunnel passwords, S3 session tokens and the file-encryption key are never imported; each affected site says so.
 - Workspaces and site shortcuts are not supported yet.
 - `Default Settings` is skipped, as are DSA and Ed448 host keys.
 - Passphrase-protected `.ppk` files are not converted: convert them with `puttygen key.ppk -O private-openssh -o key`, then choose the result in Advanced ▸ Authentication.

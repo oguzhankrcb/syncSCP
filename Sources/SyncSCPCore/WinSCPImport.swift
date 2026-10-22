@@ -10,6 +10,8 @@ public struct ImportedSite: Identifiable, Sendable {
     /// A key file found on this Mac (through a Wine prefix) that is converted or linked on import.
     public var keySource: String?
     public var tunnelKeySource: String?
+    /// The saved password, decoded only in memory; the app stores it in Keychain if the user asks.
+    public var password: String?
 }
 
 /// A host key the user trusted in WinSCP, converted from PuTTY's format to an OpenSSH known_hosts line.
@@ -232,6 +234,39 @@ public enum WinSCPImport {
         return FileManager.default.fileExists(atPath: resolved) ? resolved : nil
     }
 
+    /// WinSCP's reversible "simple" password encoding (upstream `DecryptPassword`, used when no
+    /// master password is set): hex pairs, each byte `~(b ^ 0xA3)`; a 0xFF flag means the
+    /// plaintext starts with `key` (user name + host name), which must match. Returns nil for
+    /// anything that does not decode cleanly, such as master-password (AES) values.
+    static func decodePassword(_ encoded: String, key: String) -> String? {
+        var bytes: [UInt8] = []
+        let digits = Array(encoded.uppercased().utf8)
+        guard digits.count.isMultiple(of: 2) else { return nil }
+        for index in stride(from: 0, to: digits.count, by: 2) {
+            guard let high = hex(digits[index]), let low = hex(digits[index + 1]) else { return nil }
+            bytes.append(~((high << 4 | low) ^ 0xA3))
+        }
+        func hex(_ digit: UInt8) -> UInt8? {
+            switch digit { case 48...57: return digit - 48; case 65...70: return digit - 55; default: return nil }
+        }
+        var position = 0
+        func next() -> UInt8? { guard position < bytes.count else { return nil }; defer { position += 1 }; return bytes[position] }
+        guard let flag = next() else { return nil }
+        let length: UInt8
+        if flag == 0xFF { guard next() != nil, let value = next() else { return nil }; length = value } else { length = flag }
+        guard let shift = next() else { return nil }
+        position += Int(shift)
+        guard position + Int(length) <= bytes.count else { return nil }
+        var plain = Array(bytes[position..<position + Int(length)])
+        if flag == 0xFF {
+            let prefix = Array(key.utf8)
+            guard plain.starts(with: prefix) else { return nil }
+            plain.removeFirst(prefix.count)
+        }
+        guard let text = String(bytes: plain, encoding: .utf8), !text.isEmpty, !text.contains(where: { $0.isASCII && $0.asciiValue! < 32 }) else { return nil }
+        return text
+    }
+
     static func site(named name: String, _ v: Values, prefix: URL? = nil) throws -> ImportedSite {
         var warnings: [String] = []
         var keySource: String?, tunnelKeySource: String?
@@ -273,7 +308,13 @@ public enum WinSCPImport {
             } else if FileManager.default.fileExists(atPath: (key as NSString).expandingTildeInPath) { site.privateKey = key }
             else { warnings.append("Private key \(key) does not exist on this Mac.") }
         }
-        if v.exists("Password") || v.exists("PasswordPlain") { warnings.append("The saved password was not imported; passwords are never stored.") }
+        // The stored key is UserName + HostName exactly as saved, before any user@host split.
+        var password: String?
+        if let plain = v.string("PasswordPlain"), !plain.isEmpty { password = plain }
+        else if let encoded = v.string("Password"), !encoded.isEmpty {
+            password = decodePassword(encoded, key: (v.string("UserName") ?? "") + (v.string("HostName") ?? ""))
+            if password == nil { warnings.append("The saved password could not be read (it may be protected by a WinSCP master password); enter it at login.") }
+        }
         if v.exists("S3SessionToken") { warnings.append("The S3 session token was not imported; enter it at login.") }
         if v.exists("ProxyPassword") || v.exists("ProxyPasswordEnc") { warnings.append("The proxy password was not imported.") }
         if v.exists("TunnelPassword") || v.exists("TunnelPasswordPlain") || v.exists("TunnelPassphrase") { warnings.append("The tunnel password or passphrase was not imported; use a key or the SSH agent for the tunnel.") }
@@ -437,7 +478,7 @@ public enum WinSCPImport {
         }
         site.settings = s
         do { try site.validate() } catch { throw ClientError.invalid("its settings are invalid: \(error.localizedDescription)") }
-        return ImportedSite(site: site, warnings: warnings, keySource: keySource, tunnelKeySource: tunnelKeySource)
+        return ImportedSite(site: site, warnings: warnings, keySource: keySource, tunnelKeySource: tunnelKeySource, password: password)
     }
 
     /// WinSCP algorithm lists name a priority order; missing groups are appended in default order.

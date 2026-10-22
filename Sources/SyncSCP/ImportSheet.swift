@@ -12,6 +12,8 @@ struct ImportSheet: View {
     @State private var result: WinSCPImportResult?
     @State private var chosen = Set<UUID>()
     @State private var trustHostKeys = true
+    @State private var savePasswords = false
+    @State private var passwordsSaved = 0
     @State private var found: [URL]?
     @State private var summary: WinSCPImportSummary?
     @State private var error: String?
@@ -46,7 +48,7 @@ struct ImportSheet: View {
                     if let result {
                         Button("Import \(chosen.count) Site\(chosen.count == 1 ? "" : "s")") { commit(result) }
                             .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
-                            .disabled(chosen.isEmpty && !(trustHostKeys && !result.hostKeys.isEmpty))
+                            .disabled(chosen.isEmpty && !(trustHostKeys && !result.hostKeys.isEmpty) && !(savePasswords && !existingWithPasswords(result).isEmpty))
                     }
                 }
             }.padding(14)
@@ -57,7 +59,7 @@ struct ImportSheet: View {
 
     private var start: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Choose a WinSCP configuration. Passwords are never imported; PuTTY keys without a passphrase are converted to OpenSSH format.")
+            Text("Choose a WinSCP configuration. PuTTY keys without a passphrase are converted to OpenSSH format. Saved passwords are imported only if you choose to, into your Keychain.")
                 .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 6) {
                 Label("On Windows: WinSCP ▸ Tools ▸ Export/Backup Configuration… saves a WinSCP.ini file.", systemImage: "1.circle")
@@ -90,6 +92,10 @@ struct ImportSheet: View {
                                 Text(item.site.transferProtocol.shortTitle).font(.system(size: 9.5, weight: .bold))
                                     .padding(.horizontal, 5).padding(.vertical, 1).foregroundStyle(accent).background(accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
                                 Text("\(item.site.username)@\(item.site.host):\(item.site.port)").foregroundStyle(.secondary)
+                                if item.password != nil { Image(systemName: "key.fill").font(.system(size: 10)).foregroundStyle(.secondary).help("A saved password was found") }
+                            }
+                            if existing(item) != nil {
+                                Label("Already in syncSCP; importing it again adds a copy.", systemImage: "checkmark.circle").font(.system(size: 11)).foregroundStyle(.secondary)
                             }
                             let extras = [item.site.settings.shell.isEmpty ? nil : "Shell: \(item.site.settings.shell)",
                                           item.site.settings.sftpServer.isEmpty ? nil : "SFTP server: \(item.site.settings.sftpServer)",
@@ -111,6 +117,15 @@ struct ImportSheet: View {
                         chosen = chosen.count == result.sites.count ? [] : Set(result.sites.map(\.id))
                     }.buttonStyle(.link)
                 }
+            }
+            let withPasswords = result.sites.filter { $0.password != nil }
+            if !withPasswords.isEmpty {
+                Section {
+                    Toggle("Save \(withPasswords.count) saved password\(withPasswords.count == 1 ? "" : "s") in my Keychain", isOn: $savePasswords)
+                    let updates = existingWithPasswords(result).count
+                    Text("Passwords go to the macOS Keychain on this Mac, never into site files\(updates > 0 ? "; \(updates) of them also update sites already in syncSCP" : ""). Otherwise you type them at login.")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                } header: { Text("Passwords") }
             }
             if !result.hostKeys.isEmpty {
                 Section {
@@ -141,7 +156,7 @@ struct ImportSheet: View {
             ForEach(summary.hostKeyConflicts, id: \.self) { Label("\($0): a different key is already trusted and was kept.", systemImage: "exclamationmark.shield").foregroundStyle(.orange) }
             ForEach(summary.problems, id: \.self) { Label($0, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
             if let backup = summary.backup { Text("Previous sites and host keys were backed up to \(backup.path).").foregroundStyle(.secondary).textSelection(.enabled) }
-            Text("Passwords were not imported; enter them when you log in.").foregroundStyle(.secondary)
+            Text(passwordsSaved > 0 ? "Saved \(passwordsSaved) password\(passwordsSaved == 1 ? "" : "s") in your Keychain." : "Passwords were not imported; enter them when you log in.").foregroundStyle(.secondary)
         }.font(.system(size: 12.5)).padding(20).fixedSize(horizontal: false, vertical: true)
     }
 
@@ -155,13 +170,35 @@ struct ImportSheet: View {
         error = nil
         do {
             let parsed = try WinSCPImport.parse(Data(contentsOf: url), source: url)
-            source = url; result = parsed; chosen = Set(parsed.sites.map(\.id))
+            source = url; result = parsed
+            // Sites that are already here are not selected, so importing again does not duplicate them.
+            chosen = Set(parsed.sites.filter { existing($0) == nil }.map(\.id))
         } catch { self.error = error.localizedDescription }
+    }
+
+    /// The same site already saved: same name, protocol, host, port and user.
+    private func existing(_ item: ImportedSite) -> Site? {
+        model.sites.first { $0.name == item.site.name && $0.transferProtocol == item.site.transferProtocol && $0.host == item.site.host
+            && $0.port == item.site.port && $0.username == item.site.username }
+    }
+    private func existingWithPasswords(_ result: WinSCPImportResult) -> [(Site, String)] {
+        result.sites.compactMap { item in item.password.flatMap { password in existing(item).map { ($0, password) } } }
     }
 
     private func commit(_ result: WinSCPImportResult) {
         error = nil
-        summary = model.importFromWinSCP(result.sites.filter { chosen.contains($0.id) }, hostKeys: trustHostKeys ? result.hostKeys : [])
-        if summary == nil { error = model.error }
+        let picked = result.sites.filter { chosen.contains($0.id) }
+        guard let summary = model.importFromWinSCP(picked, hostKeys: trustHostKeys ? result.hostKeys : []) else { error = model.error; return }
+        if savePasswords {
+            let imported = Set(summary.sites.map(\.id))
+            let targets = picked.compactMap { item in item.password.flatMap { imported.contains(item.id) ? (item.id, $0) : nil } }
+                + existingWithPasswords(result).map { ($0.0.id, $0.1) }
+            for (site, password) in targets {
+                do { try SavedPasswords.save(password, for: site); passwordsSaved += 1 } catch { self.error = error.localizedDescription }
+            }
+            model.refreshSavedPasswords()
+            if passwordsSaved > 0 { model.appendLog("Saved \(passwordsSaved) imported password(s) in Keychain.") }
+        }
+        self.summary = summary
     }
 }

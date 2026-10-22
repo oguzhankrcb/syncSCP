@@ -4,7 +4,9 @@ import AppKit
 
 /// syncSCP ▸ Settings (⌘,).
 struct PreferencesView: View {
+    @ObservedObject var model: CommanderModel
     @AppStorage(CommanderModel.externalEditorKey) private var editor = ""
+    @AppStorage(SavedPasswords.requireAuthenticationKey) private var requireAuthentication = false
     @AppStorage(TerminalWindowController.fontFamilyKey) private var terminalFont = ""
     @AppStorage(TerminalWindowController.fontSizeKey) private var terminalFontSize = 13.0
     private let monospacedFamilies = Set(NSFontManager.shared.availableFontNames(with: .fixedPitchFontMask) ?? [])
@@ -35,7 +37,28 @@ struct PreferencesView: View {
                 Text("Session ▸ Open Terminal (⌘T) logs in again with the site's settings and starts in the remote folder, through the SCP shell (for example sudo su -) when one is set. Prompts that use icon glyphs need a Nerd Font, such as MesloLGS NF.")
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             } header: { Text("Terminal") }
+            Section {
+                Toggle("Ask for Touch ID or my Mac password before using a saved password", isOn: $requireAuthentication)
+                LabeledContent("Saved passwords") {
+                    HStack {
+                        Text("\(model.sitesWithPasswords.count) site\(model.sitesWithPasswords.count == 1 ? "" : "s")")
+                        Spacer()
+                        Button("Forget All…") { forgetAll() }.disabled(model.sitesWithPasswords.isEmpty)
+                    }
+                }
+                Text("Login ▸ Save password keeps a password in your macOS Keychain on this Mac only; site files never contain passwords. After an update macOS may ask once whether syncSCP may use them; choose Always Allow.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } header: { Text("Passwords") }
         }
         .formStyle(.grouped).frame(width: 560).padding(.vertical, 8)
+    }
+
+    private func forgetAll() {
+        let alert = NSAlert(); alert.alertStyle = .warning
+        alert.messageText = "Forget \(model.sitesWithPasswords.count) saved password(s)?"
+        alert.informativeText = "They are removed from your Keychain. You will type them at the next login."
+        alert.addButton(withTitle: "Forget All"); alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        for site in model.sitesWithPasswords { model.forgetPassword(site) }
     }
 }

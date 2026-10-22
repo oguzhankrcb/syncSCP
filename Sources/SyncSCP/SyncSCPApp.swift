@@ -26,7 +26,7 @@ struct SyncSCPApp: App {
                 .onAppear { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
         }
         .defaultSize(width: 1320, height: 840)
-        Settings { PreferencesView() }
+        Settings { PreferencesView(model: model) }
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Session…") { model.showConnection = true }.keyboardShortcut("n")
@@ -82,7 +82,7 @@ struct SyncSCPApp: App {
                 Button("About syncSCP") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "syncSCP",
-                        .applicationVersion: "0.15.0 — Development Preview",
+                        .applicationVersion: "0.16.0 — Development Preview",
                         .credits: NSAttributedString(string: "An independent macOS file manager inspired by WinSCP's workflows; not affiliated with the WinSCP project.\nWinSCP is by Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }

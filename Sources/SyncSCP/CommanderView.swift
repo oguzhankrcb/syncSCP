@@ -128,7 +128,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.15.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.16.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)

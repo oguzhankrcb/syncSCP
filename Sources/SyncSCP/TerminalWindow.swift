@@ -10,6 +10,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
     private let terminal: LocalProcessTerminalView
     private let label: String
     private var running = true
+    private var onEnd: (() -> Void)?
+    private func finish() { onEnd?(); onEnd = nil }
     private var observations: [NSObjectProtocol] = []
     private var appearanceObservation: NSKeyValueObservation?
 
@@ -22,8 +24,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
         return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
     }
 
-    static func open(_ launch: SSHTerminalLaunch, title: String) {
+    /// `onEnd` runs once, when the ssh process ends or the window closes.
+    static func open(_ launch: SSHTerminalLaunch, title: String, onEnd: (() -> Void)? = nil) {
         let controller = TerminalWindowController(launch, title: title)
+        controller.onEnd = onEnd
         openWindows.append(controller)
         controller.showWindow(nil)
     }
@@ -91,6 +95,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
 
     func windowWillClose(_ notification: Notification) {
         if running { running = false; terminal.terminate() }
+        finish()
         observations.forEach(NotificationCenter.default.removeObserver); observations = []
         appearanceObservation = nil
         Self.openWindows.removeAll { $0 === self }
@@ -98,6 +103,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate, Loca
 
     func processTerminated(source: TerminalView, exitCode: Int32?) {
         DispatchQueue.main.async { [self] in
+            finish()
             guard running else { return }
             running = false
             let detail = exitCode.map { "exit code \($0)" } ?? "connection lost"

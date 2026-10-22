@@ -85,6 +85,8 @@ final class CommanderModel: ObservableObject {
     @Published private(set) var remoteHome = ""
     @Published private(set) var connectedAt: Date?
     @Published var showImport = false
+    /// Saved sites that have a password in Keychain (Login ▸ Save password).
+    @Published private(set) var sitesWithPasswords = Set<UUID>()
     @Published var externalEdits: [ExternalEditItem] = []
     /// Live external-edit sessions; each belongs to the connection it was opened on.
     private var editSessions: [UUID: (edit: RemoteEdit, monitor: FileChangeMonitor, session: UUID)] = [:]
@@ -120,8 +122,9 @@ final class CommanderModel: ObservableObject {
         if custom == nil { Self.migrateLegacyDefaults() }
         do { let store = try custom ?? SiteStore(); self.store = store; sites = try store.load() }
         catch { self.error = error.localizedDescription }
+        if custom == nil { refreshSavedPasswords() }
         refreshLocal()
-        appendLog("syncSCP 0.15.0 · Community development preview")
+        appendLog("syncSCP 0.16.0 · Community development preview")
     }
 
     /// Carries preferences over from the bundle identifier used before the rename to syncSCP.
@@ -219,6 +222,27 @@ final class CommanderModel: ObservableObject {
         } catch { report(error) }
     }
 
+    func refreshSavedPasswords() { sitesWithPasswords = SavedPasswords.sites(among: sites.map(\.id)) }
+
+    func forgetPassword(_ site: UUID) {
+        SavedPasswords.remove(site); refreshSavedPasswords()
+        appendLog("Removed the saved password of \(sites.first { $0.id == site }?.displayName ?? "a site").")
+    }
+
+    /// Login: a typed password wins; otherwise a saved one is used (after Touch ID if Settings ask for it).
+    /// `savePassword` stores the typed password in Keychain once the login succeeds.
+    func login(site: Site, password: String, sessionToken: String = "", savePassword: Bool = false) {
+        guard password.isEmpty, sitesWithPasswords.contains(site.id) else {
+            connect(site: site, password: password, sessionToken: sessionToken, savePassword: savePassword); return
+        }
+        Task {
+            guard await SavedPasswords.authorize("use the saved password for \(site.displayName)") else { status = "Login cancelled"; return }
+            guard let saved = SavedPasswords.read(site.id) else {
+                report(ClientError.invalid("The saved password for \(site.displayName) could not be read from Keychain. Type it again.")); return
+            }
+            connect(site: site, password: saved, sessionToken: sessionToken)
+        }
+    }
     /// Saves imported WinSCP sites, converted keys and host keys (see `WinSCPImport.commit`).
     func importFromWinSCP(_ chosen: [ImportedSite], hostKeys: [ImportedHostKey]) -> WinSCPImportSummary? {
         do {
@@ -318,13 +342,13 @@ final class CommanderModel: ObservableObject {
     private func stopEdits(of session: UUID) { for (id, live) in editSessions where live.session == session { stopEditing(id, keepChanges: true) } }
 
     func deleteSite(_ id: UUID) {
-        do { let updated = sites.filter { $0.id != id }; try store?.save(updated); sites = updated }
+        do { let updated = sites.filter { $0.id != id }; try store?.save(updated); sites = updated; SavedPasswords.remove(id); refreshSavedPasswords() }
         catch { report(error) }
     }
 
     /// Opens a new session tab; other tabs stay connected. For S3, `password` is the secret
     /// access key and `sessionToken` optional temporary credentials; neither is saved.
-    func connect(site: Site, password: String, sessionToken: String = "") {
+    func connect(site: Site, password: String, sessionToken: String = "", savePassword: Bool = false) {
         guard !connecting, !operationBusy else { return }
         let client = RemoteSession()
         connecting = true; status = "Connecting to \(site.host)…"
@@ -364,6 +388,10 @@ final class CommanderModel: ObservableObject {
                 let local = FileManager.default.fileExists(atPath: site.localPath) ? site.localPath : localPath
                 let tab = SessionTab(id: UUID(), client: client, site: site, remotePath: path, remoteEntries: entries, remoteHome: home, localPath: local)
                 tabs.append(tab); show(tab); showConnection = false
+                if savePassword, !password.isEmpty, sites.contains(where: { $0.id == site.id }) {
+                    do { try SavedPasswords.save(password, for: site.id); refreshSavedPasswords(); appendLog("Saved the password of \(site.displayName) in Keychain.") }
+                    catch { appendLog(error.localizedDescription, error: true) }
+                }
                 let security = site.transferProtocol.usesSSH ? "Host key verified by OpenSSH." : site.transferProtocol == .s3http ? "Unencrypted S3 connection; requests are signed with SigV4." : !site.transferProtocol.isEncrypted ? "Unencrypted \(site.transferProtocol.shortTitle) connection." : "Server certificate and hostname verified; TLS required."
                 appendLog("Connected to \(site.username)@\(site.host):\(site.port) using \(site.transferProtocol.title). \(security)")
             } catch {
@@ -732,9 +760,26 @@ final class CommanderModel: ObservableObject {
     /// WinSCP's Open Terminal: a separate SSH login to the current site, starting in the remote
     /// folder shown in the panel. Passwords are asked for in the terminal; none are kept.
     func openTerminal(inTerminalApp: Bool = false) {
-        guard canOpenTerminal, let site = currentSite, let store else { return }
+        guard canOpenTerminal, let site = currentSite else { return }
+        // A saved password logs the in-app terminal in through askpass, like the file session;
+        // the temporary Keychain item lives only until that terminal's ssh process ends.
+        guard !inTerminalApp, sitesWithPasswords.contains(site.id) else { openTerminal(site, credential: nil, inTerminalApp: inTerminalApp); return }
+        Task {
+            guard await SavedPasswords.authorize("log in to \(site.displayName) in a terminal"), let saved = SavedPasswords.read(site.id) else {
+                openTerminal(site, credential: nil, inTerminalApp: false); return
+            }
+            do { openTerminal(site, credential: try SessionCredential.store(saved), inTerminalApp: false) }
+            catch { report(error) }
+        }
+    }
+
+    private func openTerminal(_ site: Site, credential: String?, inTerminalApp: Bool) {
+        guard let store else { return }
+        let release = { if let credential { _ = SessionCredential.remove(credential) } }
         do {
-            let launch = try SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path).terminalLaunch(directory: remotePath)
+            let launch = try SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path,
+                                              askpassExecutable: credential == nil ? nil : Bundle.main.executablePath ?? CommandLine.arguments[0],
+                                              credentialID: credential).terminalLaunch(directory: remotePath)
             let title = "\(site.username)@\(site.host)"
             if inTerminalApp {
                 guard let terminalApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
@@ -749,10 +794,10 @@ final class CommanderModel: ObservableObject {
                 NSWorkspace.shared.open([file], withApplicationAt: terminalApp, configuration: NSWorkspace.OpenConfiguration())
                 appendLog("Opened \(title) in Terminal.app.")
             } else {
-                TerminalWindowController.open(launch, title: title)
-                appendLog("Opened a terminal to \(title) in \(remotePath).")
+                TerminalWindowController.open(launch, title: title, onEnd: release)
+                appendLog("Opened a terminal to \(title) in \(remotePath)\(credential == nil ? "" : " with the saved password").")
             }
-        } catch { report(error) }
+        } catch { release(); report(error) }
     }
 
     func previewSynchronization() {

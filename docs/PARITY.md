@@ -9,7 +9,7 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | Explorer interface | Missing | Single-panel mode |
 | Open Terminal / Open in PuTTY | Implemented | Interactive `ssh -t` login in a SwiftTerm window or Terminal.app, starting in the remote folder through the site's shell; WinSCP's non-interactive command console, custom commands and saved terminal profiles remain |
 | SFTP | Implemented, v3 | More server interoperability, extensions, pipelining, non-UTF-8 policy |
-| SSH key / agent / password | Implemented | Hardware-key and keyboard-interactive coverage, GSSAPI, persistent credentials |
+| SSH key / agent / password | Implemented | Opt-in saved passwords in Keychain with optional Touch ID, also imported from WinSCP; hardware-key and keyboard-interactive coverage, GSSAPI remain |
 | Host-key verification | Implemented | Key rotation UI, import/export, SSH config integration |
 | Files / recursive folders | Implemented | Symlink transfer policy, ownership, ACLs, extended attributes |
 | Background transfer queue | Partial | Resume, retry, parallel workers, rate limits, queue persistence |

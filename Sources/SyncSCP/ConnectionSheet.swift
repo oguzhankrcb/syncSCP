@@ -27,6 +27,7 @@ struct ConnectionSheet: View {
     @State private var site = Site()
     @State private var password = ""
     @State private var sessionToken = ""
+    @State private var savePassword = false
     @State private var selectedSite: UUID?
     @State private var search = ""
     @State private var showAdvancedSettings = false
@@ -55,7 +56,7 @@ struct ConnectionSheet: View {
                 Button("Login") {
                     model.error = nil
                     do { try site.validate() } catch { model.report(error); return }
-                    model.connect(site: site, password: password, sessionToken: s3 ? sessionToken : "")
+                    model.login(site: site, password: password, sessionToken: s3 ? sessionToken : "", savePassword: savePassword && isSaved)
                     password = ""; sessionToken = ""
                 }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).disabled(!model.canConnect)
             }
@@ -63,7 +64,7 @@ struct ConnectionSheet: View {
         }
         .frame(width: 860, height: 540)
         .onChange(of: selectedSite) { id in
-            site = model.sites.first(where: { $0.id == id }) ?? Site(); password = ""; sessionToken = ""; model.error = nil
+            site = model.sites.first(where: { $0.id == id }) ?? Site(); password = ""; sessionToken = ""; model.error = nil; savePassword = false
         }
         .onAppear {
             if let requested = model.requestedSite { site = requested; selectedSite = requested.id }
@@ -89,7 +90,14 @@ struct ConnectionSheet: View {
                 ForEach(groups, id: \.folder) { group in
                     Section(group.folder.isEmpty ? "Sites" : group.folder) {
                         ForEach(group.sites) { saved in
-                            Label { Text(SiteName.leaf(saved.displayName)).lineLimit(1) } icon: {
+                            Label {
+                                HStack(spacing: 5) {
+                                    Text(SiteName.leaf(saved.displayName)).lineLimit(1)
+                                    if model.sitesWithPasswords.contains(saved.id) {
+                                        Image(systemName: "key.fill").font(.system(size: 9)).foregroundStyle(.secondary).help("Password saved in Keychain")
+                                    }
+                                }
+                            } icon: {
                                 Image(systemName: "server.rack").foregroundStyle(SiteColor.color(saved.settings.color) ?? accent)
                             }
                             .help(saved.settings.note.isEmpty ? "\(saved.username)@\(saved.host)" : saved.settings.note).tag(Optional(saved.id))
@@ -140,10 +148,19 @@ struct ConnectionSheet: View {
             HStack(spacing: 14) {
                 labeled(s3 ? "Access key ID" : "User name") { TextField(s3 ? "AKIA…" : "username", text: $site.username).accessibilityLabel(s3 ? "Access key ID" : "User name") }
                 labeled(s3 ? "Secret access key" : "Password") {
-                    SecureField(site.transferProtocol.usesSSH ? "Password or key passphrase" : "", text: $password)
+                    SecureField(hasSavedPassword ? "Saved in Keychain" : site.transferProtocol.usesSSH ? "Password or key passphrase" : "", text: $password)
                         .accessibilityLabel(s3 ? "Secret access key" : "Password")
                 }
             }
+            HStack(spacing: 10) {
+                Toggle(hasSavedPassword ? "Save the typed \(s3 ? "key" : "password") instead" : "Save \(s3 ? "secret key" : "password") in Keychain", isOn: $savePassword)
+                    .toggleStyle(.checkbox).disabled(!isSaved)
+                    .help(isSaved ? "Stored in your macOS Keychain after a successful login, never in the site file." : "Save the site first.")
+                if hasSavedPassword {
+                    Label("Saved \(s3 ? "key" : "password") will be used", systemImage: "key.fill").foregroundStyle(.secondary)
+                    Button("Forget") { model.forgetPassword(site.id) }.buttonStyle(.link)
+                }
+            }.font(.system(size: 11.5))
             if s3 { labeled("Session token (optional)") { SecureField("For temporary credentials", text: $sessionToken).accessibilityLabel("Session token") } }
             HStack(spacing: 10) {
                 Menu("Save") {
@@ -179,7 +196,7 @@ struct ConnectionSheet: View {
 
     private var securityNote: String {
         let kind = site.transferProtocol
-        if kind.usesSSH { return "Server identity is verified before authentication. Leave the password empty to use the SSH agent or default keys; passwords are never saved." }
+        if kind.usesSSH { return "Server identity is verified before authentication. Leave the password empty to use the SSH agent or default keys. A saved password stays in your Keychain, never in the site file." }
         if kind == .s3http { return "S3 over HTTP signs requests but sends files and session tokens unencrypted." }
         if !kind.isEncrypted { return "\(kind.shortTitle) sends credentials and files unencrypted." }
         return "TLS requires a trusted certificate matching the server. Passwords and keys stay in memory for this session only."
@@ -189,7 +206,7 @@ struct ConnectionSheet: View {
     private func save(asNew: Bool) {
         let alert = NSAlert()
         alert.messageText = asNew ? "Save session as site" : "Save site"
-        alert.informativeText = "Use Folder/Name to group sites. Passwords are not saved."
+        alert.informativeText = "Use Folder/Name to group sites. Passwords are saved only with Save password, in your Keychain."
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
         field.stringValue = site.name.isEmpty ? "\(site.username)@\(site.host)" : site.name
         alert.accessoryView = field
@@ -216,6 +233,8 @@ struct ConnectionSheet: View {
     }
 
     private var s3: Bool { site.transferProtocol.usesS3 }
+    private var isSaved: Bool { model.sites.contains { $0.id == site.id } }
+    private var hasSavedPassword: Bool { model.sitesWithPasswords.contains(site.id) }
     /// One line of the settings that most change how this site connects.
     private var advancedSummary: String {
         let settings = site.settings

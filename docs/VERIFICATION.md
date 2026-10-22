@@ -1,5 +1,15 @@
 # Verification record
 
+## 0.16.0 — Saved passwords
+
+Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **121 XCTest cases, zero failures, zero skips**.
+
+- New import test: passwords written with WinSCP's own encoding steps (flagged and old format, with and without padding) decode; a different user+host prefix, truncated values and garbage are rejected with a "master password" warning; `PasswordPlain` is read.
+- The decoder was run on the user's real WinSCP.ini printing counts only: 8 of 8 saved passwords decoded with the user+host prefix check passing.
+- New terminal test: a saved-password login passes only its own askpass, never an inherited one, and keeps BatchMode off.
+- The Keychain layer was exercised with a temporary item: save, update, list without reading secrets, remove.
+- **Not tried by me:** logging in with a saved password to a password-authenticated server (the SSH fixtures use keys), the Touch ID prompt, the import sheet's password option in the running app, and the macOS Keychain access prompt after an app update.
+
 ## 0.15.0 — Session tabs
 
 Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **119 XCTest cases, zero failures, zero skips** (the core is unchanged).

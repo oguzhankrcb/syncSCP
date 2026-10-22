@@ -30,11 +30,13 @@ extension SSHConfiguration {
             let script = (directory == nil ? "" : "cd \"$1\" 2>/dev/null || echo \"syncSCP: cannot open $1\" >&2; ") + "exec " + start
             arguments.append(try "exec /bin/sh -c " + SCPShell.quote(script) + " syncscp" + (directory.map { " " + (try SCPShell.quote($0)) } ?? ""))
         }
-        // Never hand the app's askpass hook to an interactive session.
+        // Never pass on an askpass hook inherited from the app's own environment.
         var environment = base.filter { key, _ in !key.hasPrefix("SYNCSCP_") && !key.hasPrefix("SSH_ASKPASS") && key != "DISPLAY" }
         environment["TERM"] = "xterm-256color"; environment["COLORTERM"] = "truecolor"
         if environment["LANG"] == nil { environment["LANG"] = "en_US.UTF-8" }
         if !site.settings.tryAgent { environment["SSH_AUTH_SOCK"] = nil }
+        // Only an askpass configured for this login (a saved password) is passed on.
+        environment.merge(self.environment) { _, configured in configured }
         return SSHTerminalLaunch(executable: "/usr/bin/ssh", arguments: arguments, environment: environment.map { "\($0.key)=\($0.value)" }.sorted())
     }
 }
