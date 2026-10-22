@@ -1,5 +1,14 @@
 # Verification record
 
+## 0.19.0 — Two-way synchronization and Keep Remote Directory up to Date
+
+Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **127 XCTest cases, zero failures, zero skips**.
+
+- New planner test: both ways (newer wins, an unknown time is a conflict, folders both ways, never deletes), newer-only, plain one-way, mirror deletions in each direction with a deleted folder covering its contents, size-only, and a symlink in the way.
+- A scripted run of the real `CommanderModel` against the SFTP test daemon passed 19 checks: a two-way synchronization of files and folders with different ages; a local file edited after the comparison stopped the run and the server copy was kept; a second comparison found nothing; a mirror upload deleted a remote-only file; Keep up to date uploaded a new file inside new folders and a later save, ignored .DS_Store, did not mirror a local deletion and stopped uploading when stopped.
+- Fixed while testing: watching a folder under /var or /tmp never matched FSEvents paths, because Foundation turns /private/var into /var; the root is now resolved with realpath(3).
+- **Not tried by me:** Remote → Local mirror deleting into the Trash in the running app (planner-tested only), and the new Synchronize window controls by hand.
+
 ## 0.18.0 — Terminal tabs, split panes, find, snippets and port forwarding
 
 Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **126 XCTest cases, zero failures, zero skips**.

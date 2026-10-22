@@ -40,6 +40,8 @@ struct TransferJob: Identifiable {
     let replace: Bool
     let token = CancellationToken()
     var memory = TransferMemory()
+    /// Keep up to date: missing remote folders between this root and the destination are created first.
+    var createParentsBelow: String?
     var state = JobState.waiting
     var fraction = 0.0
     var detail = "Waiting"
@@ -167,7 +169,7 @@ final class CommanderModel: ObservableObject {
         catch { self.error = error.localizedDescription }
         if custom == nil { refreshSavedPasswords() }
         refreshLocal()
-        appendLog("syncSCP 0.18.0 · Community development preview")
+        appendLog("syncSCP 0.19.0 · Community development preview")
     }
 
     /// Carries preferences over from the bundle identifier used before the rename to syncSCP.
@@ -251,6 +253,7 @@ final class CommanderModel: ObservableObject {
         }
         appendLog("\(tab.site.displayName): \(message)")
         if tabs.isEmpty { status = "Disconnected" }
+        if keepUpToDate?.session == id { stopKeepingUpToDate() }
         let idle = idleTransferConnections.removeValue(forKey: id) ?? []
         Task { await tab.client.disconnect(); for connection in idle { await connection.disconnect() } }
     }
@@ -615,6 +618,13 @@ final class CommanderModel: ObservableObject {
                 let client = try await acquireTransferConnection(job.session)
                 connection = client
                 updateJob(job.id) { $0.detail = "Transferring…" }
+                if let root = job.createParentsBelow {
+                    var folder = root
+                    for part in RemotePath.parent(job.destination).dropFirst(root.count).split(separator: "/") {
+                        folder = RemotePath.join(folder, String(part))
+                        if try await !client.exists(folder) { try await client.mkdir(folder) }
+                    }
+                }
                 try await transferTree(job.entry, destination: job.destination, job: job, client: client)
                 releaseTransferConnection(client, session: job.session, healthy: true)
                 updateJob(job.id) { $0.state = .done; $0.fraction = 1; $0.detail = "Complete" }
@@ -1009,15 +1019,87 @@ final class CommanderModel: ObservableObject {
     /// On quit: forwards are child ssh processes and would otherwise outlive the app.
     func stopAllForwards() { for forward in activeForwards where forward.isRunning { forward.process.terminate() } }
 
+    @Published var syncOptions = SyncOptions()
+
+    // MARK: Keep Remote Directory up to Date
+
+    /// WinSCP's Keep Remote Directory up to Date: local changes under `local` are uploaded to `remote`.
+    struct KeepUpToDate {
+        let session: UUID
+        let siteName: String
+        let local: String
+        let remote: String
+        var uploads = 0
+    }
+    @Published private(set) var keepUpToDate: KeepUpToDate?
+    private var folderWatcher: LocalFolderWatcher?
+    /// Size and time last queued per relative path, so repeated events do not upload twice.
+    private var watchedVersions: [String: (UInt64, Date?)] = [:]
+
+    func toggleKeepUpToDate() { keepUpToDate == nil ? startKeepingUpToDate() : stopKeepingUpToDate() }
+
+    func startKeepingUpToDate() {
+        guard connected, keepUpToDate == nil, let site = currentSite else { return }
+        // FSEvents reports resolved paths (/private/var…), so the root is resolved the same way.
+        // (Foundation's resolvingSymlinksInPath maps /private/var back to /var, so realpath(3) is used.)
+        guard let resolved = Darwin.realpath(localPath, nil) else { report(ClientError.invalid("\(localPath) cannot be watched.")); return }
+        let root = String(cString: resolved); free(resolved)
+        do {
+            folderWatcher = try LocalFolderWatcher(root: root) { [weak self] paths in self?.localFilesChanged(paths) }
+            watchedVersions = [:]
+            keepUpToDate = KeepUpToDate(session: sessionID, siteName: site.displayName, local: root, remote: remotePath)
+            appendLog("Keeping \(remotePath) up to date with \(root): changed files are uploaded; nothing is deleted.")
+        } catch { report(error) }
+    }
+
+    func stopKeepingUpToDate() {
+        folderWatcher?.stop(); folderWatcher = nil
+        if let state = keepUpToDate { appendLog("Stopped keeping \(state.remote) up to date (\(state.uploads) upload(s)).") }
+        keepUpToDate = nil
+    }
+
+    /// Editor and system scratch files that should never be uploaded.
+    static func ignoredByKeepUpToDate(_ relative: String) -> Bool {
+        relative.split(separator: "/").contains { part in
+            part.hasPrefix(".syncscp-") || part == ".DS_Store" || part.hasPrefix(".#") || part.hasSuffix("~") || part.hasSuffix(".swp") || part.hasSuffix(".swx") || part == ".git"
+        }
+    }
+
+    private func localFilesChanged(_ paths: [String]) {
+        guard var state = keepUpToDate else { return }
+        guard tabs.contains(where: { $0.id == state.session }) else { stopKeepingUpToDate(); return }
+        for path in Set(paths) where path.hasPrefix(state.local + "/") {
+            let relative = String(path.dropFirst(state.local.count + 1))
+            guard !Self.ignoredByKeepUpToDate(relative), let info = try? LocalFiles.info(path), info.isRegularFile else { continue }
+            if let known = watchedVersions[relative], known.0 == info.size, known.1 == info.modified { continue }
+            let destination = RemotePath.join(state.remote, relative)
+            guard !jobs.contains(where: { $0.destination == destination && $0.state == .waiting }) else { continue }
+            watchedVersions[relative] = (info.size, info.modified)
+            var job = TransferJob(session: state.session, siteName: state.siteName, direction: .upload, entry: info, destination: destination, replace: true)
+            job.createParentsBelow = state.remote
+            jobs.append(job); state.uploads += 1
+        }
+        keepUpToDate = state
+        scheduleQueue()
+    }
+
+    /// Opens Synchronize for the two folders shown and compares them with the current options.
     func previewSynchronization() {
         guard connected, !busy else { return }
+        syncItems = []; showSync = true
+        compareForSynchronization()
+    }
+
+    func compareForSynchronization() {
+        guard connected, !busy else { return }
         syncLocal = localPath; syncRemote = remotePath; syncSessionID = sessionID
+        let options = syncOptions
         perform {
             var local: [String: FileEntry] = [:]; var remote: [String: FileEntry] = [:]
             try self.collectLocal(self.syncLocal, relative: "", into: &local, depth: 0)
             try await self.collectRemote(self.syncRemote, relative: "", into: &remote, depth: 0)
             self.syncLocalSnapshot = local; self.syncRemoteSnapshot = remote
-            self.syncItems = SyncPlanner.compare(local: local, remote: remote); self.showSync = true
+            self.syncItems = SyncPlanner.compare(local: local, remote: remote, options: options)
         }
     }
 
@@ -1039,26 +1121,52 @@ final class CommanderModel: ObservableObject {
         }
     }
 
+    /// Applies the reviewed plan; conflicts are skipped. Every item is checked against the
+    /// preview first, so nothing that changed since then is overwritten or deleted.
     func executeSynchronization() {
-        guard connected, !busy, !syncItems.contains(where: { $0.action == .conflict }) else { return }
-        guard sessionID == syncSessionID else { report(ClientError.conflict("The remote session changed. Preview synchronization again.")); return }
-        let items = syncItems; let local = syncLocal; let remote = syncRemote
+        guard connected, !busy else { return }
+        guard sessionID == syncSessionID else { report(ClientError.conflict("The remote session changed. Compare again.")); return }
+        let items = syncItems.filter { $0.action != .conflict }; let local = syncLocal; let remote = syncRemote
+        let localSnapshot = syncLocalSnapshot, remoteSnapshot = syncRemoteSnapshot
         showSync = false
         perform {
+            let manager = FileManager.default
+            func changed(_ path: String) -> ClientError { .conflict("\(path) changed since the comparison. Compare again.") }
+            func localUnchanged(_ item: SyncItem, _ url: URL) throws {
+                guard let expected = localSnapshot[item.relativePath], let current = try? LocalFiles.info(url.path),
+                      expected.isDirectory ? current.isDirectory : (current.isRegularFile && current.hasSameVersion(as: expected)) else { throw changed(item.relativePath) }
+            }
+            func remoteUnchanged(_ item: SyncItem, _ path: String) async throws {
+                guard let expected = remoteSnapshot[item.relativePath] else { throw changed(item.relativePath) }
+                let current = try await self.client.stat(path)
+                guard expected.isDirectory ? current.isDirectory : current.hasSameVersion(as: expected) else { throw changed(item.relativePath) }
+            }
             for item in items {
                 let destination = RemotePath.join(remote, item.relativePath)
                 let source = URL(fileURLWithPath: local).appendingPathComponent(item.relativePath)
-                let sourceInfo = try LocalFiles.info(source.path)
-                guard let expectedLocal = self.syncLocalSnapshot[item.relativePath],
-                      expectedLocal.isDirectory ? sourceInfo.isDirectory : (sourceInfo.isRegularFile && sourceInfo.hasSameVersion(as: expectedLocal)) else {
-                    throw ClientError.conflict("The local item changed since the preview: \(item.relativePath). Preview again.")
-                }
-                if item.action == .createDirectory {
-                    guard try await !self.client.exists(destination) else { throw ClientError.conflict("The destination appeared since the preview: \(item.relativePath). Preview again.") }
+                switch item.action {
+                case .createDirectory:
+                    try localUnchanged(item, source)
+                    guard try await !self.client.exists(destination) else { throw ClientError.conflict("The destination appeared since the comparison: \(item.relativePath). Compare again.") }
                     try await self.client.mkdir(destination)
-                } else {
-                    try await self.client.upload(local: source, remote: destination, replace: item.replacesFile,
-                                                 expectedDestination: self.syncRemoteSnapshot[item.relativePath])
+                case .upload:
+                    try localUnchanged(item, source)
+                    try await self.client.upload(local: source, remote: destination, replace: item.replacesFile, expectedDestination: remoteSnapshot[item.relativePath])
+                case .createLocalDirectory:
+                    try await remoteUnchanged(item, destination)
+                    guard !manager.fileExists(atPath: source.path) else { throw ClientError.conflict("\(item.relativePath) appeared locally since the comparison. Compare again.") }
+                    try manager.createDirectory(at: source, withIntermediateDirectories: false)
+                case .download:
+                    try await remoteUnchanged(item, destination)
+                    if item.replacesFile { try localUnchanged(item, source) }
+                    try await self.client.download(remote: destination, local: source, replace: item.replacesFile)
+                case .deleteRemote:
+                    try await remoteUnchanged(item, destination)
+                    try await self.client.remove(destination, recursive: true)
+                case .deleteLocal:
+                    try localUnchanged(item, source)
+                    try manager.trashItem(at: source, resultingItemURL: nil)
+                case .conflict: continue
                 }
                 self.appendLog("Synchronize: \(item.action.rawValue) \(item.relativePath)")
             }

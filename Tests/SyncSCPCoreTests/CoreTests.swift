@@ -128,4 +128,38 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(items[0].replacesFile)
         XCTAssertFalse(items[3].replacesFile)
     }
+
+    func testSyncDirectionsNewerOnlyMirrorAndBothWays() {
+        let old = Date(timeIntervalSince1970: 10_000), new = old.addingTimeInterval(600)
+        func file(_ name: String, _ size: UInt64, _ date: Date?) -> FileEntry { FileEntry(path: name, name: name, size: size, modified: date) }
+        func folder(_ name: String) -> FileEntry { FileEntry(path: name, name: name, permissions: 0o040755) }
+        let local = ["newer-here": file("newer-here", 5, new), "newer-there": file("newer-there", 5, old), "unknown": file("unknown", 4, nil),
+                     "only-local": file("only-local", 1, old), "local-dir": folder("local-dir"), "same": file("same", 3, old)]
+        let remote = ["newer-here": file("newer-here", 6, old), "newer-there": file("newer-there", 6, new), "unknown": file("unknown", 5, new),
+                      "only-remote": file("only-remote", 2, old), "remote-dir": folder("remote-dir"), "remote-dir/inner": file("remote-dir/inner", 1, old),
+                      "same": file("same", 3, old.addingTimeInterval(1))]
+        func plan(_ options: SyncOptions) -> [String: SyncAction] {
+            Dictionary(uniqueKeysWithValues: SyncPlanner.compare(local: local, remote: remote, options: options).map { ($0.relativePath, $0.action) })
+        }
+        let both = plan(SyncOptions(direction: .both))
+        XCTAssertEqual(both["newer-here"], .upload); XCTAssertEqual(both["newer-there"], .download)
+        XCTAssertEqual(both["unknown"], .conflict, "no time on one side: undecidable")
+        XCTAssertEqual(both["only-local"], .upload); XCTAssertEqual(both["only-remote"], .download)
+        XCTAssertEqual(both["local-dir"], .createDirectory); XCTAssertEqual(both["remote-dir"], .createLocalDirectory)
+        XCTAssertNil(both["same"])
+        XCTAssertFalse(both.values.contains(.deleteLocal) || both.values.contains(.deleteRemote), "two-way never deletes")
+        let newerUpload = plan(SyncOptions(direction: .upload, newerOnly: true))
+        XCTAssertEqual(newerUpload["newer-here"], .upload); XCTAssertNil(newerUpload["newer-there"])
+        let download = plan(SyncOptions(direction: .download))
+        XCTAssertEqual(download["newer-here"], .download, "plain one-way copies any difference")
+        XCTAssertNil(download["only-local"], "nothing is deleted without the option")
+        let mirror = plan(SyncOptions(direction: .upload, deleteExtras: true))
+        XCTAssertEqual(mirror["only-remote"], .deleteRemote); XCTAssertEqual(mirror["remote-dir"], .deleteRemote)
+        XCTAssertNil(mirror["remote-dir/inner"], "a deleted folder covers its contents")
+        XCTAssertEqual(plan(SyncOptions(direction: .download, deleteExtras: true))["only-local"], .deleteLocal)
+        let sizes = plan(SyncOptions(direction: .upload, sizeOnly: true))
+        XCTAssertNil(sizes["same"]); XCTAssertEqual(sizes["newer-here"], .upload)
+        let link = FileEntry(path: "link", name: "link", permissions: 0o120777)
+        XCTAssertEqual(SyncPlanner.compare(local: ["link": file("link", 1, old)], remote: ["link": link], options: SyncOptions(direction: .upload)).first?.action, .conflict)
+    }
 }

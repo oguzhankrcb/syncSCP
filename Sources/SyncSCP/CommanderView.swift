@@ -50,6 +50,9 @@ struct CommanderView: View {
             ToolDivider()
             ToolButton(title: "Synchronize", icon: "arrow.triangle.2.circlepath") { model.previewSynchronization() }
                 .disabled(!model.connected || model.busy).help("Synchronize · ⌘⇧S")
+            ToolButton(title: model.keepUpToDate == nil ? "Keep Up to Date" : "Stop Keeping Up to Date", icon: model.keepUpToDate == nil ? "eye" : "eye.slash") { model.toggleKeepUpToDate() }
+                .disabled(model.keepUpToDate == nil && (!model.connected || model.busy))
+                .help("Upload local changes to the remote folder as you save them (Keep Remote Directory up to Date)")
             ToolButton(title: "Terminal", icon: "terminal") { model.openTerminal() }
                 .disabled(!model.canOpenTerminal).help(model.canOpenTerminal ? "Open an SSH terminal in the current remote folder · ⌘T" : "Connect with SFTP or SCP to open a terminal")
             Menu {
@@ -124,12 +127,17 @@ struct CommanderView: View {
                 Text(model.status).lineLimit(1)
             }
             Spacer()
+            if let watch = model.keepUpToDate {
+                Label("Keeping \((watch.remote as NSString).lastPathComponent) up to date · \(watch.uploads) uploaded", systemImage: "eye.fill")
+                    .foregroundStyle(accent).help("\(watch.local) → \(watch.siteName):\(watch.remote)")
+                Button("Stop") { model.stopKeepingUpToDate() }.buttonStyle(.link)
+            }
             if model.connected, let start = model.connectedAt {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.18.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.19.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)

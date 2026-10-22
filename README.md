@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.18.0-blue" alt="Version 0.18.0"/>
+  <img src="https://img.shields.io/badge/version-0.19.0-blue" alt="Version 0.19.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="Platform macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal binary"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commander workflow to the Mac: a local and a remote pane, a transfer queue, per-site Advanced settings and a built-in SSH terminal. It uses the OpenSSH and libcurl that ship with macOS, keeps its own strict host-key store, and never writes passwords to disk. No account, no subscription, no telemetry.
 
-> **Status: 0.18.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
+> **Status: 0.19.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
 
 ## ⚡ Coming from WinSCP
 
@@ -62,7 +62,7 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 | Import WinSCP sites, keys, host keys | Yes (`WinSCP.ini`, `reg export`, Wine/Whisky)   | —                         |
 | Saved passwords                      | Opt-in, macOS Keychain, optional Touch ID       | Encrypted in its config   |
 | External editors with upload on save | Yes                                             | Yes                       |
-| Synchronization                      | One-way, reviewed                               | One- and two-way          |
+| Synchronization                      | One- and two-way, mirror, keep up to date       | One- and two-way          |
 | Scripting / automation               | Not yet                                         | Yes                       |
 | Transfer resume, parallel queue      | Yes (resume over SFTP)                          | Yes                       |
 | License                              | GPL-3.0-or-later                                | GPL-3.0                   |
@@ -108,7 +108,8 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 - Transfers go to temporary `.filepart` paths and are committed only when complete; replacing a file always asks first
 - **Edit With** any application: every save is uploaded, but only if the server copy is still the version you opened
 - Built-in UTF-8 editor for quick changes, with conflict checks
-- Reviewed one-way local → remote synchronization; nothing remote is deleted
+- **Synchronize** Local → Remote, Remote → Local or **both ways** (the newer file wins, undecidable ones are shown as conflicts), with newer-only, size-only and an opt-in mirror that deletes extras (local deletions go to the Trash); every item is rechecked before it is applied
+- **Keep Remote Directory up to Date** (⌥⌘U): saved and new local files are uploaded as you work, creating remote folders as needed; editor scratch files are ignored and nothing is deleted
 
 ### 🧭 Sites and Settings
 

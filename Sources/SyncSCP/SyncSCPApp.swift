@@ -67,6 +67,8 @@ struct SyncSCPApp: App {
             }
             CommandMenu("Session") {
                 Button("Synchronize…") { model.previewSynchronization() }.keyboardShortcut("s", modifiers: [.command, .shift]).disabled(!model.connected)
+                Button(model.keepUpToDate == nil ? "Keep Remote Directory up to Date" : "Stop Keeping Remote Directory up to Date") { model.toggleKeepUpToDate() }
+                    .keyboardShortcut("u", modifiers: [.command, .option]).disabled(model.keepUpToDate == nil && !model.connected)
                 Button("Refresh") { model.refresh() }.keyboardShortcut("r")
                 Divider()
                 Toggle("Show Hidden Files", isOn: $model.showHidden).keyboardShortcut(".", modifiers: [.command, .shift])
@@ -100,7 +102,7 @@ struct SyncSCPApp: App {
                 Button("About syncSCP") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "syncSCP",
-                        .applicationVersion: "0.18.0 — Development Preview",
+                        .applicationVersion: "0.19.0 — Development Preview",
                         .credits: NSAttributedString(string: "An independent macOS file manager inspired by WinSCP's workflows; not affiliated with the WinSCP project.\nWinSCP is by Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }

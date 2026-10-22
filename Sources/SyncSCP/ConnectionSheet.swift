@@ -310,26 +310,45 @@ struct EditorSheet: View {
 struct SynchronizationSheet: View {
     @ObservedObject var model: CommanderModel
     @Environment(\.dismiss) private var dismiss
-    private var conflicts: Bool { model.syncItems.contains { $0.action == .conflict } }
+    private var conflicts: Int { model.syncItems.filter { $0.action == .conflict }.count }
+    private var deletions: Int { model.syncItems.filter { $0.action == .deleteRemote || $0.action == .deleteLocal }.count }
+    private var actionable: Int { model.syncItems.count - conflicts }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("Synchronize · Local → Remote", systemImage: "arrow.triangle.2.circlepath").font(.title3.weight(.semibold))
-            Text("Review changes before applying. Files present only on the server are kept. Symbolic links are skipped. Files are compared by size and modification time.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Synchronize", systemImage: "arrow.triangle.2.circlepath").font(.title3.weight(.semibold))
+            Text("\(model.localPath)  ⇄  \(model.remotePath)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            HStack(spacing: 16) {
+                Picker("Direction", selection: $model.syncOptions.direction) { ForEach(SyncDirection.allCases) { Text($0.rawValue).tag($0) } }
+                    .pickerStyle(.segmented).frame(width: 360)
+                Toggle("Newer files only", isOn: $model.syncOptions.newerOnly).disabled(model.syncOptions.direction == .both)
+                    .help("Copy a file only when the source is newer than the destination")
+                Toggle("Compare size only", isOn: $model.syncOptions.sizeOnly).help("Ignore modification times, for servers whose clocks or time zones differ")
+            }.toggleStyle(.checkbox).font(.system(size: 12))
+            HStack(spacing: 16) {
+                Toggle(model.syncOptions.direction == .download ? "Delete local files that are not on the server (to Trash)" : "Delete remote files that are not on this Mac",
+                       isOn: $model.syncOptions.deleteExtras).disabled(model.syncOptions.direction == .both).toggleStyle(.checkbox)
+                    .foregroundStyle(model.syncOptions.deleteExtras && model.syncOptions.direction != .both ? Color.red : Color.primary)
+                Spacer()
+                Button("Compare") { model.compareForSynchronization() }.disabled(model.busy)
+            }.font(.system(size: 12))
             Table(model.syncItems) {
-                TableColumn("Action") { item in Text(item.action.rawValue).foregroundStyle(item.action == .conflict ? .red : .primary) }.width(125)
-                TableColumn("Relative path", value: \.relativePath)
-                TableColumn("Existing file") { item in Text(item.replacesFile ? "Replace" : "—") }.width(90)
-            }.frame(height: 280)
-            if conflicts { Text("Resolve file/folder type conflicts before synchronizing.").font(.system(size: 11)).foregroundStyle(.red) }
+                TableColumn("Action") { item in
+                    Text(item.action.rawValue).foregroundStyle(item.action == .conflict ? Color.orange : item.action == .deleteRemote || item.action == .deleteLocal ? Color.red : Color.primary)
+                }.width(150)
+                TableColumn("Relative path") { item in Text(item.relativePath).help(item.reason) }
+                TableColumn("Note") { item in Text(item.action == .conflict ? item.reason : item.replacesFile ? "Replaces existing" : "").foregroundStyle(.secondary) }.width(220)
+            }.frame(height: 300)
+            if conflicts > 0 { Text("\(conflicts) conflict\(conflicts == 1 ? " is" : "s are") skipped; resolve them by hand or synchronize one way.").font(.system(size: 11)).foregroundStyle(.orange) }
+            if deletions > 0 { Text("\(deletions) item\(deletions == 1 ? "" : "s") will be deleted\(model.syncOptions.direction == .download ? " (moved to the Trash)" : " from the server; this cannot be undone").").font(.system(size: 11)).foregroundStyle(.red) }
             HStack {
-                Text("\(model.syncItems.count) changes").font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(model.busy ? "Comparing…" : "\(actionable) change\(actionable == 1 ? "" : "s")").font(.system(size: 11)).foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Apply Changes") { model.executeSynchronization() }.buttonStyle(.borderedProminent)
-                    .disabled(conflicts || model.syncItems.isEmpty || model.busy)
+                    .disabled(actionable == 0 || model.busy)
             }
-        }.padding(22).frame(width: 730)
+        }.padding(22).frame(width: 820)
+        .onChange(of: model.syncOptions.direction) { direction in if direction == .both { model.syncOptions.deleteExtras = false; model.syncOptions.newerOnly = false } }
     }
 }

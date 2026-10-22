@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.18.0-blue" alt="Sürüm 0.18.0"/>
+  <img src="https://img.shields.io/badge/version-0.19.0-blue" alt="Sürüm 0.19.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygulamasıdır (SwiftUI ve AppKit): yerel ve uzak panel, aktarım kuyruğu, site başına Advanced ayarlar ve yerleşik SSH terminali. macOS ile gelen OpenSSH ve libcurl'ü kullanır, kendi sıkı host key deposunu tutar ve parolaları hiçbir zaman diske yazmaz. Hesap, abonelik veya telemetri yok.
 
-> **Durum: 0.18.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
+> **Durum: 0.19.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
 
 ## ⚡ WinSCP'den geçenler için
 
@@ -62,7 +62,7 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 | WinSCP sitelerini, anahtarlarını, host key'lerini içe aktarma | Var (`WinSCP.ini`, `reg export`, Wine/Whisky) | — |
 | Kayıtlı parolalar                        | İsteğe bağlı, macOS Keychain, Touch ID seçeneği | Kendi ayar dosyasında |
 | Kaydedince yükleyen harici editörler     | Var                                             | Var                 |
-| Eşitleme                                 | Tek yönlü, önizlemeli                           | Tek ve çift yönlü   |
+| Eşitleme                                 | Tek/çift yönlü, ayna, güncel tutma              | Tek ve çift yönlü   |
 | Betik / otomasyon                        | Henüz yok                                       | Var                 |
 | Aktarımı sürdürme, paralel kuyruk        | Var (SFTP'de kaldığı yerden)                    | Var                 |
 | Lisans                                   | GPL-3.0-or-later                                | GPL-3.0             |
@@ -108,7 +108,8 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 - Aktarımlar geçici `.filepart` yoluna yapılır ve yalnızca tamamlanınca yerine konur; üzerine yazmadan önce her zaman sorulur
 - **Edit With** ile istediğiniz uygulama: her kayıt yüklenir, ama sunucudaki kopya açtığınız sürümse
 - Hızlı değişiklikler için yerleşik UTF-8 editör, çakışma kontrolüyle
-- Önizlemeli, tek yönlü yerel → uzak eşitleme; uzakta hiçbir şey silinmez
+- **Synchronize**: Yerel → Uzak, Uzak → Yerel veya **çift yönlü** (yeni olan dosya kazanır, karar verilemeyenler çakışma olarak gösterilir); yalnızca yeni olanlar, yalnızca boyut ve isteğe bağlı ayna (fazlalıkları siler, yerelde Çöp Kutusu'na). Her adım uygulanmadan önce yeniden kontrol edilir
+- **Keep Remote Directory up to Date** (⌥⌘U): kaydettiğiniz ve yeni oluşturduğunuz yerel dosyalar çalışırken yüklenir, eksik uzak klasörler açılır; editör geçici dosyaları atlanır, hiçbir şey silinmez
 
 ### 🧭 Siteler ve ayarlar
 
