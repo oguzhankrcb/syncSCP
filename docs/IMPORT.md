@@ -34,6 +34,11 @@ Nothing is written until **Import**. The preview lists every site with its proto
 - **Saved passwords (0.16.0):** WinSCP's `Password` (its reversible "simple" encoding, used when no master password is set) and `PasswordPlain` are decoded in memory. The decoded text must start with the site's user name + host name, as upstream requires, or it is rejected. Nothing is stored unless you tick **Save … saved passwords in my Keychain**; then each goes into the macOS Keychain under that site, never into `sites.json`. Values protected by a master password cannot be read and the site says so.
 - Sites that already exist (same name, protocol, host, port and user) are marked and not selected, so importing again does not duplicate them; their passwords can still be saved.
 - Proxy and tunnel passwords, S3 session tokens and the file-encryption key are never imported; each affected site says so.
+- **Passphrase-protected PuTTY keys (0.21.0):** the preview asks for the passphrase. Format 2 (SHA-1 key derivation) and format 3 (Argon2) are decrypted and MAC-checked, and the converted OpenSSH key gets the same passphrase through `ssh-keygen -p` with the app's askpass, so neither the passphrase nor an unprotected copy is ever written to disk.
+
+## `~/.ssh/config` (0.21.0)
+
+Import ▸ **Import ~/.ssh/config** turns every concrete `Host` alias into a site in the "SSH config" folder. Blocks apply in file order and the first value of each keyword wins, so `Host *` defaults fill only what a host leaves unset; negated patterns are honored. Imported: HostName, User, Port, IdentityFile (if it exists), ProxyJump (first hop as the site's SSH tunnel), ProxyCommand (as a local proxy command), LocalForward (saved port forwards), ServerAliveInterval, ConnectTimeout, Compression and ForwardAgent. Match blocks, Include files, RemoteForward, DynamicForward, CertificateFile, HostKeyAlias and LocalCommand are not imported and the sites say so. Host keys are confirmed on first connection as usual.
 - Workspaces and site shortcuts are not supported yet.
 - `Default Settings` is skipped, as are DSA and Ed448 host keys.
 - Passphrase-protected `.ppk` files are not converted: convert them with `puttygen key.ppk -O private-openssh -o key`, then choose the result in Advanced ▸ Authentication.

@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.20.0-blue" alt="Version 0.20.0"/>
+  <img src="https://img.shields.io/badge/version-0.21.0-blue" alt="Version 0.21.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="Platform macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal binary"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commander workflow to the Mac: a local and a remote pane, a transfer queue, per-site Advanced settings and a built-in SSH terminal. It uses the OpenSSH and libcurl that ship with macOS, keeps its own strict host-key store, and never writes passwords to disk. No account, no subscription, no telemetry.
 
-> **Status: 0.20.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
+> **Status: 0.21.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
 
 ## ⚡ Coming from WinSCP
 
@@ -84,6 +84,9 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 - **Find Files** on the server (⌥⌘F): recursive, case-insensitive name masks such as `*.log; nginx*.conf`; a result opens its folder
 - **Duplicate** (⇧F5) and **Move To** (⇧F6) on the server, never replacing anything; SCP copies with the server's own `cp`
 - **Properties** for many items at once: rwx checkboxes or octal, optionally recursive, keeping folders openable
+- **Quick Open** (⌘K): type to connect to a site, jump to a bookmark or run a command
+- **Bookmarks** for local folders and per-site remote folders (⌥⌘B, the path menu, Go ▸ Bookmarks)
+- **Quick Look** (⌘Y) for local and remote files; remote previews are fetched to a private temporary folder and removed afterwards
 
 ### 💻 SSH Terminal
 
@@ -120,6 +123,8 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 
 - WinSCP-style Login: sites grouped in folders, search, separate protocol and encryption choices, Save / Save As… and Manage
 - WinSCP's **Advanced Site Settings**, page for page: SCP/Shell, SFTP server, timeouts, keepalives, IPv4/IPv6, SOCKS/HTTP/local proxies, SSH tunnels, TLS versions, cipher and key-exchange policy, rekey limits, authentication, S3 options, notes and colors. Options that cannot apply on macOS are shown disabled with a reason ([details](docs/SETTINGS.md))
+- **Import from `~/.ssh/config`**: host names, users, ports, identity files, ProxyJump (as a tunnel), ProxyCommand, LocalForward and keepalives, with `Host *` defaults applied the way ssh does
+- **PuTTY keys**, including passphrase-protected ones (format 2 and 3 with Argon2), convert to OpenSSH keys that keep their passphrase (Login ▸ Tools ▸ Convert PuTTY Key, or during import)
 - **Import from WinSCP**: `WinSCP.ini`, `reg export` files, or WinSCP running under Wine, Whisky or CrossOver on this Mac. Sites keep their folders and settings, passphrase-free PuTTY keys become OpenSSH keys, trusted host keys come along, saved passwords can go into your Keychain if you choose, sites you already have are not duplicated, and your data is backed up first ([details](docs/IMPORT.md))
 
 ### 🔐 Security and Privacy

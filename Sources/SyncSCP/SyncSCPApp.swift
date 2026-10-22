@@ -35,7 +35,9 @@ struct SyncSCPApp: App {
                     .disabled(!model.connected || !model.canConnect)
                 Button("Disconnect") { model.disconnect() }.disabled(!model.connected || model.operationBusy)
                 Divider()
-                Button("Import from WinSCP…") { model.showImport = true }.disabled(model.busy)
+                Button("Import from WinSCP or SSH Config…") { model.showImport = true }.disabled(model.busy)
+                Divider()
+                Button("Quick Open…") { model.showQuickOpen = true }.keyboardShortcut("k")
             }
             CommandMenu("Files") {
                 Button("Upload Selected") { model.transfer(.upload) }.keyboardShortcut("u", modifiers: [.command, .shift]).disabled(!model.canUpload)
@@ -59,6 +61,7 @@ struct SyncSCPApp: App {
                     Button("Move on Server To…") { model.moveRemote() }.keyboardShortcut(FunctionKey.f6, modifiers: .shift).disabled(model.activeSide != .remote || model.activeSelection.isEmpty || model.busy)
                 }
                 Divider()
+                Button("Quick Look") { model.quickLookSelected() }.keyboardShortcut("y").disabled(model.activeSelection.first(where: \.isRegularFile) == nil || model.busy)
                 Button("Find Files…") { model.showFindFiles = true }.keyboardShortcut("f", modifiers: [.command, .option]).disabled(!model.connected || model.busy)
                 Button("Properties…") { model.promptPermissions() }.keyboardShortcut("i").disabled(model.activeSide != .remote || model.activeSelection.isEmpty || model.busy)
             }
@@ -71,6 +74,14 @@ struct SyncSCPApp: App {
                 Button("Switch Panel") { model.activeSide = model.activeSide == .local ? .remote : .local }.keyboardShortcut(.tab, modifiers: .control)
                 Divider()
                 Toggle("Directory Tree", isOn: $model.showTree).keyboardShortcut("t", modifiers: [.command, .option])
+                Divider()
+                Button("Bookmark This Folder") { model.bookmarkCurrentFolder() }.keyboardShortcut("b", modifiers: [.command, .option])
+                Menu("Remote Bookmarks") {
+                    ForEach(model.remoteBookmarks, id: \.self) { path in Button(path) { model.activeSide = .remote; model.navigateRemote(path) } }
+                }.disabled(model.remoteBookmarks.isEmpty || !model.connected)
+                Menu("Local Bookmarks") {
+                    ForEach(model.localBookmarks, id: \.self) { path in Button(path) { model.activeSide = .local; model.navigateLocal(path) } }
+                }.disabled(model.localBookmarks.isEmpty)
                 Toggle("Compare Directories", isOn: $model.compareDirectories).keyboardShortcut("c", modifiers: [.command, .option]).disabled(!model.connected)
             }
             CommandMenu("Session") {
@@ -110,7 +121,7 @@ struct SyncSCPApp: App {
                 Button("About syncSCP") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "syncSCP",
-                        .applicationVersion: "0.20.0 — Development Preview",
+                        .applicationVersion: "0.21.0 — Development Preview",
                         .credits: NSAttributedString(string: "An independent macOS file manager inspired by WinSCP's workflows; not affiliated with the WinSCP project.\nWinSCP is by Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }

@@ -11,7 +11,7 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | Port forwarding (PuTTY Tunnels) | Implemented | Saved local forwards per site, loopback only, ExitOnForwardFailure; remote and dynamic (SOCKS) forwards remain |
 | SFTP | Implemented, v3 | More server interoperability, extensions, pipelining, non-UTF-8 policy |
 | SSH key / agent / password | Implemented | Opt-in saved passwords in Keychain with optional Touch ID, also imported from WinSCP; hardware-key and keyboard-interactive coverage, GSSAPI remain |
-| Host-key verification | Implemented | Key rotation UI, import/export, SSH config integration |
+| Host-key verification | Implemented | Key rotation UI, import/export, SSH config import of sites (host keys are still confirmed on first use) |
 | Files / recursive folders | Implemented | Symlink transfer policy, ownership, ACLs, extended attributes |
 | Background transfer queue | Implemented | Background connections per site, parallel workers (Settings), automatic retry after a lost connection, SFTP resume of partial files, retry button; rate limits, queue persistence across launches and resume for FTP/WebDAV/S3/SCP remain |
 | FTP / explicit & implicit FTPS | Implemented baseline | Verified TLS, MLSD/Unix/DOS LIST, transfers and operations; active mode, proxies, advanced interoperability, resume remaining |
@@ -22,11 +22,12 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | Permissions | Implemented (n/a for WebDAV/S3) | Multi-item rwx/octal editor, recursive with execute kept on readable folders; ownership remains |
 | Text editor | Partial | Built-in UTF-8 editor (4 MB) plus external editors with save watching, conflict-checked upload and Edit With/Open With; other encodings and large files in the built-in editor remaining |
 | Synchronization | Implemented | Upload, download and two-way with newer-only, size-only and opt-in mirror deletion, every item rechecked before it is applied; Keep Remote Directory up to Date via FSEvents; checksum comparison and file masks remain |
+| Quick Open, bookmarks, Quick Look | Implemented | ⌘K palette for sites, bookmarks and commands; per-site remote and local bookmarks; Quick Look for local and remote files |
 | Sites / workspaces | Partial | JSON sites in WinSCP-style folders, with notes, colors, search, Save As and rename; import of WinSCP.ini, `reg export` and Wine/Whisky/CrossOver configurations ([IMPORT.md](IMPORT.md)); workspaces remaining |
 | Advanced Site Settings | Implemented dialog, partial effect | All upstream pages and settings round-trip; shell/SFTP server, timeouts, keepalives, IP version, SOCKS/HTTP/local proxy, SSH tunnel, TLS versions, cipher/kex policy, rekey, authentication options and S3 options are applied; the rest are badged as planned or unavailable in [SETTINGS.md](SETTINGS.md) |
 | Automation / CLI | Missing | Script parser, protocol URLs, compatible exit codes and logs |
 | .NET assembly | Missing | Evaluate portable automation API and compatibility strategy |
-| PuTTY / Pageant | macOS equivalent partial | OpenSSH agent; passphrase-free PPK v2/v3 conversion on import; encrypted PPK and Pageant remaining |
+| PuTTY / Pageant | macOS equivalent | OpenSSH agent; PPK v2/v3 conversion including passphrase-protected keys (Argon2, verified against RFC 9106), the passphrase kept on the OpenSSH key; Pageant remains |
 | Tunnel / proxy / jump host | Partial | SSH tunnel and SOCKS4/5/HTTP/local proxies for SFTP/SCP; SOCKS/HTTP proxies for FTP/WebDAV/S3; proxy authentication, Telnet proxy and tunnels for curl protocols remain |
 | Localization / accessibility | Partial | English UI with native controls; localization, full VoiceOver/keyboard audit |
 | Release distribution | Partial | Local ad-hoc signed .app; Developer ID, notarization, updates, DMG release remaining |

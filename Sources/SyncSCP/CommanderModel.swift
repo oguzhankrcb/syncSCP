@@ -169,7 +169,7 @@ final class CommanderModel: ObservableObject {
         catch { self.error = error.localizedDescription }
         if custom == nil { refreshSavedPasswords() }
         refreshLocal()
-        appendLog("syncSCP 0.20.0 · Community development preview")
+        appendLog("syncSCP 0.21.0 · Community development preview")
     }
 
     /// Carries preferences over from the bundle identifier used before the rename to syncSCP.
@@ -291,14 +291,43 @@ final class CommanderModel: ObservableObject {
         }
     }
     /// Saves imported WinSCP sites, converted keys and host keys (see `WinSCPImport.commit`).
-    func importFromWinSCP(_ chosen: [ImportedSite], hostKeys: [ImportedHostKey]) -> WinSCPImportSummary? {
+    func importFromWinSCP(_ chosen: [ImportedSite], hostKeys: [ImportedHostKey], passphrases: [String: String] = [:]) -> WinSCPImportSummary? {
         do {
             guard let store else { throw ClientError.invalid("The site store is unavailable.") }
-            let summary = try WinSCPImport.commit(chosen, hostKeys: hostKeys, into: store, existing: sites)
+            let summary = try WinSCPImport.commit(chosen, hostKeys: hostKeys, into: store, existing: sites, passphrases: passphrases,
+                                                  protect: { [weak self] file, passphrase in try self?.protectKey(file, passphrase: passphrase) })
             sites = try store.load()
             appendLog("Imported \(summary.sites.count) WinSCP sites, \(summary.convertedKeys.count) converted keys and \(summary.hostKeysAdded) host keys.")
             return summary
         } catch { report(error); return nil }
+    }
+
+    /// Puts `passphrase` on a converted OpenSSH key; ssh-keygen reads it through the app's askpass.
+    func protectKey(_ file: URL, passphrase: String) throws {
+        let credential = try SessionCredential.store(passphrase)
+        defer { _ = SessionCredential.remove(credential) }
+        try OpenSSHKey.protect(file, askpass: ["SSH_ASKPASS": Bundle.main.executablePath ?? CommandLine.arguments[0], "SSH_ASKPASS_REQUIRE": "force",
+                                               "DISPLAY": "syncscp:0", "SYNCSCP_ASKPASS_ID": credential])
+    }
+
+    /// Login ▸ Tools ▸ Convert PuTTY Key: writes the OpenSSH key (owner-only, with the same
+    /// passphrase if it had one) into the app's keys folder and returns its path.
+    func convertPuTTYKey(_ source: URL, passphrase: String?) throws -> String {
+        guard let store else { throw ClientError.invalid("The site store is unavailable.") }
+        let converted = try PuTTYKey.convert(String(contentsOf: source, encoding: .utf8), passphrase: passphrase)
+        let keys = store.directory.appendingPathComponent("keys", isDirectory: true)
+        try FileManager.default.createDirectory(at: keys, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let stem = source.deletingPathExtension().lastPathComponent
+        var target = keys.appendingPathComponent(stem.isEmpty ? "converted-key" : stem), index = 2
+        while FileManager.default.fileExists(atPath: target.path) { target = keys.appendingPathComponent("\(stem)-\(index)"); index += 1 }
+        guard FileManager.default.createFile(atPath: target.path, contents: Data(converted.privateKey.utf8), attributes: [.posixPermissions: 0o600]) else {
+            throw ClientError.invalid("Cannot write the converted key.")
+        }
+        do { if let passphrase, !passphrase.isEmpty { try protectKey(target, passphrase: passphrase) } }
+        catch { try? FileManager.default.removeItem(at: target); throw error }
+        FileManager.default.createFile(atPath: target.path + ".pub", contents: Data(converted.publicKeyLine.utf8), attributes: [.posixPermissions: 0o644])
+        appendLog("Converted PuTTY key \(source.lastPathComponent) to \(target.path)\(passphrase?.isEmpty == false ? " (still protected by its passphrase)" : "").")
+        return target.path
     }
 
     // MARK: External editing (WinSCP's external editor)
@@ -765,6 +794,67 @@ final class CommanderModel: ObservableObject {
         }
     }
 
+
+    // MARK: Bookmarks
+
+    @Published var localBookmarks = UserDefaults.standard.stringArray(forKey: "LocalBookmarks") ?? [] {
+        didSet { UserDefaults.standard.set(localBookmarks, forKey: "LocalBookmarks") }
+    }
+    var remoteBookmarks: [String] { currentSite?.settings.bookmarks ?? [] }
+
+    /// Go ▸ Bookmark This Folder: the active panel's folder; remote bookmarks belong to the site.
+    func bookmarkCurrentFolder() {
+        if activeSide == .local {
+            guard !localBookmarks.contains(localPath) else { return }
+            localBookmarks.append(localPath); appendLog("Bookmarked \(localPath).")
+        } else if let site = currentSite, !remotePath.isEmpty, !site.settings.bookmarks.contains(remotePath) {
+            setBookmarks(site.settings.bookmarks + [remotePath], for: site.id); appendLog("Bookmarked \(remotePath) for \(site.displayName).")
+        }
+    }
+
+    func removeBookmark(_ path: String, side: PaneSide) {
+        if side == .local { localBookmarks.removeAll { $0 == path } }
+        else if let site = currentSite { setBookmarks(site.settings.bookmarks.filter { $0 != path }, for: site.id) }
+    }
+
+    private func setBookmarks(_ bookmarks: [String], for siteID: UUID) {
+        if var saved = sites.first(where: { $0.id == siteID }) { saved.settings.bookmarks = bookmarks; saveSite(saved) }
+        if currentSite?.id == siteID { currentSite?.settings.bookmarks = bookmarks }
+        for index in tabs.indices where tabs[index].site.id == siteID { tabs[index].site.settings.bookmarks = bookmarks }
+    }
+
+    // MARK: Quick Look and Quick Open
+
+    @Published var quickLookURL: URL?
+    @Published var showQuickOpen = false
+    private var quickLookFolder: URL?
+
+    /// ⌘Y: previews the selected file; a remote file (up to 200 MB) is downloaded to a private temporary folder first.
+    func quickLookSelected() {
+        guard let entry = activeSelection.first(where: { $0.isRegularFile }), !busy else { return }
+        if activeSide == .local { quickLookURL = URL(fileURLWithPath: entry.path); return }
+        guard entry.size <= 200 * 1024 * 1024 else { report(ClientError.unsupported("Quick Look downloads files up to 200 MB. Download \(entry.name) instead.")); return }
+        endQuickLook()
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("syncscp-preview-" + UUID().uuidString, isDirectory: true)
+        quickLookFolder = folder
+        perform {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            let file = folder.appendingPathComponent(entry.name)
+            try await self.client.download(remote: entry.path, local: file)
+            self.quickLookURL = file
+        }
+    }
+
+    /// Removes a downloaded preview once Quick Look closes.
+    func endQuickLook() {
+        if let folder = quickLookFolder { try? FileManager.default.removeItem(at: folder); quickLookFolder = nil }
+    }
+
+    /// Quick Open: a site logs in straight away when it needs no typed password; otherwise Login opens with it.
+    func quickConnect(_ site: Site) {
+        let ready = sitesWithPasswords.contains(site.id) || (site.transferProtocol.usesSSH && !site.privateKey.isEmpty)
+        if ready { login(site: site, password: "") } else { requestedSite = site; showConnection = true }
+    }
 
     // MARK: Compare Directories
 

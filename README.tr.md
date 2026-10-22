@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.20.0-blue" alt="Sürüm 0.20.0"/>
+  <img src="https://img.shields.io/badge/version-0.21.0-blue" alt="Sürüm 0.21.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygulamasıdır (SwiftUI ve AppKit): yerel ve uzak panel, aktarım kuyruğu, site başına Advanced ayarlar ve yerleşik SSH terminali. macOS ile gelen OpenSSH ve libcurl'ü kullanır, kendi sıkı host key deposunu tutar ve parolaları hiçbir zaman diske yazmaz. Hesap, abonelik veya telemetri yok.
 
-> **Durum: 0.20.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
+> **Durum: 0.21.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
 
 ## ⚡ WinSCP'den geçenler için
 
@@ -84,6 +84,9 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 - Sunucuda **dosya arama** (⌥⌘F): alt klasörlerde, büyük/küçük harf duyarsız `*.log; nginx*.conf` gibi maskeler; sonuç kendi klasöründe açılır
 - Sunucuda **çoğaltma** (⇧F5) ve **taşıma** (⇧F6); hiçbir şeyin üzerine yazılmaz, SCP'de sunucunun kendi `cp` komutu kullanılır
 - Birden fazla öğe için **izinler**: rwx kutuları veya sekizlik değer, isteğe bağlı alt klasörlerle, klasörler açılabilir kalır
+- **Quick Open** (⌘K): yazarak siteye bağlanın, yer imine gidin veya komut çalıştırın
+- Yerel klasörler ve site başına uzak klasörler için **yer imleri** (⌥⌘B, yol menüsü, Go ▸ Bookmarks)
+- Yerel ve uzak dosyalar için **Quick Look** (⌘Y); uzak dosyalar özel geçici klasöre alınır ve kapanınca silinir
 
 ### 💻 SSH terminali
 
@@ -120,6 +123,8 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 
 - WinSCP tarzı Login: klasörlü site ağacı, arama, ayrı protokol ve şifreleme seçimi, Save / Save As… ve Manage
 - WinSCP'nin **Advanced Site Settings** penceresi sayfa sayfa: SCP/Shell, SFTP server, zaman aşımı, keepalive, IPv4/IPv6, SOCKS/HTTP/yerel proxy, SSH tunnel, TLS sürümleri, cipher ve key exchange sıralaması, rekey, kimlik doğrulama, S3 seçenekleri, not ve renk. macOS'ta uygulanamayan seçenekler gerekçesiyle pasif gösterilir ([ayrıntı](docs/SETTINGS.md))
+- **`~/.ssh/config`'ten içe aktarma**: host adları, kullanıcılar, portlar, anahtar dosyaları, ProxyJump (tunnel olarak), ProxyCommand, LocalForward ve keepalive; `Host *` varsayılanları ssh'nin kuralıyla uygulanır
+- Parolalı olanlar dahil **PuTTY anahtarları** (format 2 ve Argon2'li format 3), parolasını koruyan OpenSSH anahtarlarına çevrilir (Login ▸ Tools ▸ Convert PuTTY Key ya da içe aktarma sırasında)
 - **WinSCP'den içe aktarma**: `WinSCP.ini`, `reg export` dosyası ya da bu Mac'te Wine, Whisky veya CrossOver altında çalışan WinSCP. Siteler klasörleri ve ayarlarıyla gelir, şifresiz PuTTY anahtarları OpenSSH'a çevrilir, güvenilen host key'ler eklenir, istenirse kayıtlı parolalar Keychain'e alınır, zaten var olan siteler çoğaltılmaz ve önce yedek alınır ([ayrıntı](docs/IMPORT.md))
 
 ### 🔐 Güvenlik ve gizlilik

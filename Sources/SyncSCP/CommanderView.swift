@@ -2,6 +2,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import QuickLook
 import SyncSCPCore
 
 /// WinSCP's Commander layout with a native macOS finish: toolbar, session tab, two panes
@@ -40,6 +41,9 @@ struct CommanderView: View {
         .sheet(isPresented: $model.showImport) { ImportSheet(model: model) }
         .sheet(isPresented: $model.showPortForwarding) { PortForwardingSheet(model: model) }
         .sheet(isPresented: $model.showFindFiles) { FindFilesSheet(model: model) }
+        .sheet(isPresented: $model.showQuickOpen) { QuickOpenSheet(model: model) }
+        .quickLookPreview($model.quickLookURL)
+        .onChange(of: model.quickLookURL) { url in if url == nil { model.endQuickLook() } }
         .sheet(isPresented: Binding(get: { model.permissionsTarget != nil }, set: { if !$0 { model.permissionsTarget = nil } })) {
             if let entries = model.permissionsTarget { PermissionsSheet(model: model, entries: entries) }
         }
@@ -145,7 +149,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.20.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.21.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)
@@ -427,6 +431,15 @@ struct FilePane: View {
                     .accessibilityLabel(local ? "Local folder path" : "Remote folder path")
                 Menu {
                     ForEach(ancestors, id: \.self) { folder in Button(folder) { navigate(folder) } }
+                    let bookmarks = local ? model.localBookmarks : model.remoteBookmarks
+                    if !bookmarks.isEmpty {
+                        Divider()
+                        ForEach(bookmarks, id: \.self) { folder in Button { navigate(folder) } label: { Label(folder, systemImage: "bookmark") } }
+                    }
+                    Divider()
+                    Button { model.activeSide = side; model.bookmarkCurrentFolder() } label: { Label("Bookmark This Folder", systemImage: "bookmark.fill") }
+                        .disabled(path.isEmpty || bookmarks.contains(path))
+                    if bookmarks.contains(path) { Button("Remove Bookmark") { model.removeBookmark(path, side: side) } }
                 } label: { Image(systemName: "chevron.down") }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(!usable || path.isEmpty)
                     .accessibilityLabel("Parent folders")

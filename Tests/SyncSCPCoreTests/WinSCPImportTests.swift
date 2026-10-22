@@ -126,7 +126,7 @@ final class WinSCPImportTests: XCTestCase {
         // The sample's Password value is truncated, so it cannot be decoded and the user is told.
         XCTAssertTrue(warnings.contains("password could not be read"), warnings)
         XCTAssertNil(db.password)
-        XCTAssertTrue(warnings.contains("db.ppk") && warnings.contains("puttygen"), warnings)
+        XCTAssertTrue(warnings.contains("db.ppk") && warnings.contains("Convert PuTTY Key"), warnings)
         XCTAssertTrue(warnings.contains("Windows path"), warnings)
         XCTAssertTrue(warnings.contains("dummy commands"), warnings)
 

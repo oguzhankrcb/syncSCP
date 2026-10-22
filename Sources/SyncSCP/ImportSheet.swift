@@ -13,6 +13,8 @@ struct ImportSheet: View {
     @State private var chosen = Set<UUID>()
     @State private var trustHostKeys = true
     @State private var savePasswords = false
+    /// Passphrases for protected PuTTY keys, by key file path; kept only while the sheet is open.
+    @State private var passphrases: [String: String] = [:]
     @State private var passwordsSaved = 0
     @State private var found: [URL]?
     @State private var summary: WinSCPImportSummary?
@@ -69,6 +71,9 @@ struct ImportSheet: View {
             HStack {
                 Button("Find on This Mac") { found = WinSCPImport.locateOnThisMac(); if found?.count == 1 { load(found![0]) } }
                 Button("Choose File…") { choose() }
+                Divider().frame(height: 18)
+                Button("Import ~/.ssh/config") { loadSSHConfig() }
+                    .help("Hosts from your OpenSSH configuration: host names, users, ports, keys, ProxyJump and LocalForward")
             }
             if let found {
                 if found.isEmpty { Text("No WinSCP configuration was found in Wine, Whisky or CrossOver prefixes.").foregroundStyle(.secondary) }
@@ -102,6 +107,10 @@ struct ImportSheet: View {
                                           item.site.settings.tunnel ? "Tunnel: \(item.site.settings.tunnelHost)" : nil,
                                           item.site.settings.proxyMethod == .none ? nil : "Proxy: \(item.site.settings.proxyMethod.rawValue.uppercased())"].compactMap { $0 }
                             if !extras.isEmpty { Text(extras.joined(separator: " · ")).font(.system(size: 11)).foregroundStyle(.secondary) }
+                            if let key = item.keySource, item.warnings.contains(where: { $0.contains("protected by a passphrase") }) {
+                                SecureField("Passphrase for \((key as NSString).lastPathComponent)", text: Binding(get: { passphrases[key] ?? "" }, set: { passphrases[key] = $0 }))
+                                    .textFieldStyle(.roundedBorder).frame(maxWidth: 320)
+                            }
                             ForEach(item.warnings, id: \.self) { warning in
                                 Label(warning, systemImage: warning.contains("will be converted") ? "key" : "exclamationmark.triangle")
                                     .font(.system(size: 11)).foregroundStyle(warning.contains("will be converted") ? Color.secondary : Color.orange)
@@ -166,6 +175,15 @@ struct ImportSheet: View {
         if panel.runModal() == .OK, let url = panel.url { load(url) }
     }
 
+    private func loadSSHConfig() {
+        error = nil
+        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/config")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { error = "~/.ssh/config was not found or cannot be read."; return }
+        let parsed = SSHConfigImport.parse(text)
+        source = url; result = parsed
+        chosen = Set(parsed.sites.filter { existing($0) == nil }.map(\.id))
+    }
+
     private func load(_ url: URL) {
         error = nil
         do {
@@ -188,7 +206,8 @@ struct ImportSheet: View {
     private func commit(_ result: WinSCPImportResult) {
         error = nil
         let picked = result.sites.filter { chosen.contains($0.id) }
-        guard let summary = model.importFromWinSCP(picked, hostKeys: trustHostKeys ? result.hostKeys : []) else { error = model.error; return }
+        guard let summary = model.importFromWinSCP(picked, hostKeys: trustHostKeys ? result.hostKeys : [], passphrases: passphrases.filter { !$0.value.isEmpty }) else { error = model.error; return }
+        passphrases = [:]
         if savePasswords {
             let imported = Set(summary.sites.map(\.id))
             let targets = picked.compactMap { item in item.password.flatMap { imported.contains(item.id) ? (item.id, $0) : nil } }

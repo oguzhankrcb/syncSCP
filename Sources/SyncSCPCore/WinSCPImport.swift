@@ -302,9 +302,15 @@ public enum WinSCPImport {
             let file = key.replacingOccurrences(of: "\\", with: "/").split(separator: "/").last.map(String.init) ?? key
             if let resolved = resolve(key, prefix: prefix) {
                 keySource = resolved
-                if resolved.lowercased().hasSuffix(".ppk") { warnings.append("Private key \(file) will be converted from PuTTY to OpenSSH format.") }
+                if resolved.lowercased().hasSuffix(".ppk") {
+                    if let text = try? String(contentsOfFile: resolved, encoding: .utf8), PuTTYKey.isEncrypted(text) {
+                        warnings.append("Private key \(file) is protected by a passphrase; enter it below to convert it (the converted key keeps the passphrase).")
+                    } else {
+                        warnings.append("Private key \(file) will be converted from PuTTY to OpenSSH format.")
+                    }
+                }
             } else if isWindowsPath(key) || key.lowercased().hasSuffix(".ppk") {
-                warnings.append("Private key \(file) must be copied to this Mac\(key.lowercased().hasSuffix(".ppk") ? " and converted to OpenSSH format (puttygen \(file) -O private-openssh)" : ""), then chosen in Advanced ▸ Authentication.")
+                warnings.append("Private key \(file) must be copied to this Mac\(key.lowercased().hasSuffix(".ppk") ? " and converted with Login ▸ Tools ▸ Convert PuTTY Key…" : ""), then chosen in Advanced ▸ Authentication.")
             } else if FileManager.default.fileExists(atPath: (key as NSString).expandingTildeInPath) { site.privateKey = key }
             else { warnings.append("Private key \(key) does not exist on this Mac.") }
         }
@@ -560,7 +566,10 @@ extension WinSCPImport {
     /// Saves the chosen sites (unique names), converts or links their keys into `<store>/keys`
     /// (0600), and appends chosen host keys to the app's known_hosts without replacing a
     /// different key already trusted for that host. `sites.json` and known_hosts are backed up first.
-    public static func commit(_ chosen: [ImportedSite], hostKeys: [ImportedHostKey], into store: SiteStore, existing: [Site]) throws -> WinSCPImportSummary {
+    /// `passphrases` unlock passphrase-protected PuTTY keys (by source path); `protect` then puts
+    /// the same passphrase on the converted OpenSSH key, so it is never stored unprotected.
+    public static func commit(_ chosen: [ImportedSite], hostKeys: [ImportedHostKey], into store: SiteStore, existing: [Site],
+                              passphrases: [String: String] = [:], protect: ((URL, String) throws -> Void)? = nil) throws -> WinSCPImportSummary {
         let manager = FileManager.default
         var summary = WinSCPImportSummary()
         let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
@@ -578,7 +587,10 @@ extension WinSCPImport {
             if let done = installed[source] { return done }
             guard source.lowercased().hasSuffix(".ppk") else { installed[source] = source; return source }
             do {
-                let converted = try PuTTYKey.convert(String(contentsOfFile: source, encoding: .utf8))
+                let text = try String(contentsOfFile: source, encoding: .utf8)
+                let passphrase = PuTTYKey.isEncrypted(text) ? passphrases[source] : nil
+                if passphrase != nil, protect == nil { throw ClientError.invalid("a protected key cannot be converted here.") }
+                let converted = try PuTTYKey.convert(text, passphrase: passphrase)
                 let stem = ((source as NSString).lastPathComponent as NSString).deletingPathExtension
                 var name = stem.isEmpty ? "imported-key" : stem, index = 2
                 while manager.fileExists(atPath: keys.appendingPathComponent(name).path) { name = "\(stem)-\(index)"; index += 1 }
@@ -586,6 +598,10 @@ extension WinSCPImport {
                 guard manager.createFile(atPath: target.path, contents: Data(converted.privateKey.utf8), attributes: [.posixPermissions: 0o600]),
                       manager.createFile(atPath: target.path + ".pub", contents: Data(converted.publicKeyLine.utf8), attributes: [.posixPermissions: 0o644]) else {
                     throw ClientError.invalid("cannot write the converted key.")
+                }
+                if let passphrase, let protect {
+                    do { try protect(target, passphrase) }
+                    catch { try? manager.removeItem(at: target); try? manager.removeItem(atPath: target.path + ".pub"); throw error }
                 }
                 installed[source] = target.path; summary.convertedKeys.append(target.path)
                 return target.path

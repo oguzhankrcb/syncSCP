@@ -182,6 +182,8 @@ public struct SiteSettings: Codable, Equatable, Sendable {
     public var color = ""
     /// Saved SSH local port forwards for this site (Session ▸ Port Forwarding).
     public var portForwards: [PortForward] = []
+    /// Remote folders bookmarked for this site (Go ▸ Bookmarks).
+    public var bookmarks: [String] = []
 
     public init() {}
 
@@ -283,6 +285,7 @@ public struct SiteSettings: Codable, Equatable, Sendable {
         load(.bugWinAdj, &bugWinAdj)
         load(.note, &note)
         load(.portForwards, &portForwards)
+        load(.bookmarks, &bookmarks)
         load(.color, &color)
     }
 

@@ -43,7 +43,8 @@ struct ConnectionSheet: View {
             Divider()
             HStack(spacing: 8) {
                 Menu("Tools") {
-                    Button("Import Sites from WinSCP…") { showImport = true }
+                    Button("Import Sites from WinSCP or SSH Config…") { showImport = true }
+                    Button("Convert PuTTY Key…") { convertKey() }
                 }.fixedSize()
                 Menu("Manage") {
                     Button("Rename…") { renameSelected() }.disabled(selectedSite == nil)
@@ -234,6 +235,26 @@ struct ConnectionSheet: View {
         guard alert.runModal() == .alertFirstButtonReturn, !field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         saved.name = field.stringValue.trimmingCharacters(in: .whitespaces)
         model.saveSite(saved); site.name = saved.name
+    }
+
+    /// Converts a .ppk into an OpenSSH key in the app's keys folder and uses it for this site.
+    private func convertKey() {
+        let panel = NSOpenPanel(); panel.allowedContentTypes = []; panel.allowsOtherFileTypes = true; panel.message = "Choose a PuTTY private key (.ppk)"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var passphrase: String?
+        if let text = try? String(contentsOf: url, encoding: .utf8), PuTTYKey.isEncrypted(text) {
+            let alert = NSAlert(); alert.messageText = "Passphrase for \(url.lastPathComponent)"
+            alert.informativeText = "The converted OpenSSH key keeps this passphrase."
+            let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24)); alert.accessoryView = field
+            alert.addButton(withTitle: "Convert"); alert.addButton(withTitle: "Cancel")
+            alert.window.initialFirstResponder = field
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            passphrase = field.stringValue
+        }
+        do {
+            site.privateKey = try model.convertPuTTYKey(url, passphrase: passphrase)
+            model.error = nil
+        } catch { model.report(error) }
     }
 
     private var s3: Bool { site.transferProtocol.usesS3 }

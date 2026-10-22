@@ -1,5 +1,15 @@
 # Verification record
 
+## 0.21.0 — Quick Open, bookmarks, Quick Look, SSH config import, protected PuTTY keys
+
+Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **134 XCTest cases, zero failures, zero skips**.
+
+- New BLAKE2b and Argon2 tests: the RFC 7693 and RFC 9106 known-answer vectors for Argon2d, Argon2i and Argon2id all match. PuTTY's typical default cost (8 MiB × 21 passes) takes about 4 s in a debug build and well under a second in release.
+- New PuTTY key tests: format 2 and format 3 (Argon2id) passphrase-protected files, built from the existing vectors following sshpubk.c, convert to keys whose public halves `ssh-keygen -y` confirms; a wrong or missing passphrase is refused. A converted key protected through askpass opens only with its passphrase; a failing askpass is reported instead of leaving a key that looks protected.
+- New SSH config test: first-value-wins with `Host *` defaults, negated patterns, ProxyJump with user and port (extra hops reported), ProxyCommand, two LocalForwards (one IPv6), keepalive, missing identity files and unsupported keywords.
+- A scripted run of the real `CommanderModel` against the SFTP test daemon passed 12 checks: Quick Open connected a key-based site directly and sent a password site to Login; remote bookmarks were saved with the site and removed; a local bookmark was added once; a remote file was fetched for Quick Look and its temporary copy removed afterwards; a PuTTY key converted from the app into the keys folder, owner-only, and worked with ssh-keygen.
+- **Not tried by me:** the ⌘K window and Quick Look panel by hand, importing the user's real ~/.ssh/config, and a passphrase-protected key file written by PuTTY itself (no puttygen on this Mac; the format was built from the specification and Argon2 checked against RFC vectors).
+
 ## 0.20.0 — Directory tree, Compare Directories, Find Files, remote copy/move, bulk permissions
 
 Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **128 XCTest cases, zero failures, zero skips**.
