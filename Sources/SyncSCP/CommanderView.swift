@@ -55,7 +55,7 @@ struct CommanderView: View {
                 Toggle("Show Queue Panel", isOn: $model.showBottom)
                 Button("Show Session Log") { model.bottomTab = .log; model.showBottom = true }
                 Divider()
-                Button("Clear Finished Transfers") { model.clearCompleted() }.disabled(model.runningQueue)
+                Button("Clear Finished Transfers") { model.clearCompleted() }
             } label: {
                 Label(model.pendingCount > 0 ? "Queue (\(model.pendingCount))" : "Queue", systemImage: "list.bullet.rectangle")
             }
@@ -128,7 +128,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.16.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.17.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)
@@ -227,7 +227,7 @@ struct QueuePanel: View {
                 tab(.log, title: "Log", count: 0)
                 Spacer()
                 if model.bottomTab == .queue {
-                    Button("Clear finished") { model.clearCompleted() }.buttonStyle(.borderless).font(.system(size: 11)).disabled(model.runningQueue)
+                    Button("Clear finished") { model.clearCompleted() }.buttonStyle(.borderless).font(.system(size: 11))
                 } else if model.bottomTab == .log {
                     Button("Copy log") {
                         NSPasteboard.general.clearContents()
@@ -283,6 +283,10 @@ struct QueuePanel: View {
                             if job.state == .running || job.state == .waiting {
                                 Button { model.cancelJob(job.id) } label: { Image(systemName: "xmark.circle") }
                                     .buttonStyle(.borderless).help("Cancel transfer").accessibilityLabel("Cancel \(job.entry.name)")
+                            } else if job.state == .failed || job.state == .cancelled {
+                                Button { model.retryJob(job.id) } label: { Image(systemName: "arrow.clockwise.circle") }
+                                    .buttonStyle(.borderless).help("Try again; files already transferred are skipped")
+                                    .accessibilityLabel("Retry \(job.entry.name)").disabled(!model.tabs.contains { $0.id == job.session })
                             } else { Color.clear.frame(width: 16) }
                         }
                         .font(.system(size: 12)).padding(.horizontal, 14).frame(height: 28)

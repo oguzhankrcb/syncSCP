@@ -7,6 +7,8 @@ struct PreferencesView: View {
     @ObservedObject var model: CommanderModel
     @AppStorage(CommanderModel.externalEditorKey) private var editor = ""
     @AppStorage(SavedPasswords.requireAuthenticationKey) private var requireAuthentication = false
+    @AppStorage(CommanderModel.maxTransfersKey) private var maxTransfers = 2
+    @AppStorage(CommanderModel.retriesKey) private var retries = 3
     @AppStorage(TerminalWindowController.fontFamilyKey) private var terminalFont = ""
     @AppStorage(TerminalWindowController.fontSizeKey) private var terminalFontSize = 13.0
     private let monospacedFamilies = Set(NSFontManager.shared.availableFontNames(with: .fixedPitchFontMask) ?? [])
@@ -37,6 +39,12 @@ struct PreferencesView: View {
                 Text("Session ▸ Open Terminal (⌘T) logs in again with the site's settings and starts in the remote folder, through the SCP shell (for example sudo su -) when one is set. Prompts that use icon glyphs need a Nerd Font, such as MesloLGS NF.")
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             } header: { Text("Terminal") }
+            Section {
+                Stepper(value: $maxTransfers, in: 1...8) { LabeledContent("Transfers at the same time", value: "\(maxTransfers)") }
+                Stepper(value: $retries, in: 0...10) { LabeledContent("Retries after a lost connection", value: retries == 0 ? "Off" : "\(retries)") }
+                Text("Transfers run on their own connections to the site, so you can keep browsing. After a lost connection a transfer reconnects and tries again; over SFTP it continues partial files instead of starting over.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } header: { Text("Transfers") }
             Section {
                 Toggle("Ask for Touch ID or my Mac password before using a saved password", isOn: $requireAuthentication)
                 LabeledContent("Saved passwords") {

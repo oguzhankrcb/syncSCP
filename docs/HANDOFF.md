@@ -1,6 +1,6 @@
 # syncSCP — oturum devir notu
 
-Son güncelleme: 22 Ekim 2026 (0.16.0 / kayıtlı parolalar). Bu belge, geliştirmeyi yeni bir oturumda mevcut dosyalardan sürdürmek için hazırlanmıştır.
+Son güncelleme: 22 Ekim 2026 (0.17.0 / arka plan aktarımları). Bu belge, geliştirmeyi yeni bir oturumda mevcut dosyalardan sürdürmek için hazırlanmıştır.
 
 ## Amaç ve mevcut yaklaşım
 
@@ -10,11 +10,20 @@ Kullanıcının hedefi WinSCP'nin macOS üzerinde mümkün olduğunca bire bir �
 /Users/oguzhankaracabay/Desktop/projects/WinSCP-Mac-Port
 ```
 
-Mevcut uygulama **0.16.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
+Mevcut uygulama **0.17.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
 
 Swift Package Manager kullanılıyor; hedef macOS 13+, paket araç sürümü 5.9. Son doğrulamalar Apple Silicon üzerinde Swift 6.2 ile yapıldı. Uygulama macOS'un OpenSSH, libcurl ve CryptoKit bileşenlerini kullanıyor; tek indirilen Swift paketi terminal için SwiftTerm (MIT, `exact: 1.20.0`; swift-argument-parser onun aracı için çözülüyor ama uygulamaya girmiyor). AWS SDK, Electron, Wine veya Python çalışma zamanı bağımlılığı yok. Python ve Docker yalnızca bağımsız test sunucuları için kullanılıyor.
 
 **Git durumu:** `origin` = kullanıcının **private** GitHub reposu `https://github.com/oguzhankrcb/syncSCP` (21 Ekim 2026'da `WinSCP-Mac-Port` olarak oluşturuldu, 0.13.0'da yeniden adlandırıldı; GitHub eski adresi yönlendiriyor). `main` dalında ilk commit (`c7b6c76`, 0.4.0 içeri aktarımı) push edildi. 0.5.0 S3 ve 0.6.0 ayar çalışmaları ayrı commit'lerdir; push durumunu `git status -sb` ile kontrol et. Proje kökündeki `syncSCP — UI mockup.html` kullanıcının dışa aktardığı mockup kopyasıdır; untracked bırakıldı, commit'lenmedi. Repo private kalmalı; public yapmak, release veya PR açmak ayrıca yetki ister. `dist/`, `.build/` ve `upstream/winscp/` git dışında tutuluyor. Yine de `git clean`, reset gibi dosya kaybettirecek işlemler yapma.
+
+## 0.17.0: Arka plan aktarımları, yeniden deneme ve devam
+
+- Aktarımlar artık sekmenin göz atma bağlantısını kullanmıyor: her iş, o sekmenin sitesine açılan ayrı bir arka plan bağlantısında çalışıyor (`acquireTransferConnection` / `releaseTransferConnection`, sekme başına boşta bağlantı havuzu). Bunun için sekme parolası ve S3 token'ı yalnızca bellekte, sekme açıkken tutuluyor (`SessionTab.password`), WinSCP gibi. Duplicate Session da bu yüzden parola sormadan açılıyor.
+- `busy` artık aktarımları içermiyor; aktarım sürerken gezinme ve dosya işlemleri çalışıyor. `runningQueue` hesaplanan bir özellik.
+- `scheduleQueue()` Settings ▸ Transfers'taki sayı kadar (varsayılan 2, `MaxParallelTransfers`) işi aynı anda başlatıyor. `ClientError.connection` alan iş, `TransferRetries` (varsayılan 3) kadar 2/4/6… sn beklemeyle yeni bağlantıda tekrar deneniyor; sekme kapanmıyor.
+- `TransferMemory`: biten dosyalar, oluşturulan klasörler ve dosya başına `TransferResume`; yeniden denemede ve kuyruktaki Retry düğmesinde bitenler atlanıyor, klasör "zaten var" hatası vermiyor.
+- Core: `TransferResume` + `SFTPClient.upload/download(resume:)`; bağlantı kopunca .filepart saklanıyor, aynı kaynak sürümüyle sonraki deneme kaldığı yerden yazıyor. Diğer protokoller baştan başlıyor (`RemoteSession.resumesTransfers`).
+- Uygulamadan çıkarken çalışan/bekleyen aktarım varsa uyarı.
 
 ## 0.16.0: Kayıtlı parolalar
 
@@ -34,7 +43,6 @@ Birden fazla bağlantı aynı anda açık kalabiliyor. `SessionTab` her bağlant
 - `connect` yeni sekme açıyor; diğer sekmelerde aktarım sürerken de bağlanılabiliyor (`canConnect`). Sekme değiştirme `operationBusy` sırasında kapalı.
 - Kısayollar: ⌘⇧] / ⌘⇧[ sekme değiştirme, ⌘⌥D Duplicate Session (Login'i aynı siteyle açar).
 - `CommanderModel(store:)` testler ve render harness'ları için ayrı bir site deposu alabiliyor; uygulama varsayılanı kullanıyor.
-- Kuyruk hâlâ tek worker ve `busy` aktarım sürerken çoğu dosya işlemini kapatıyor; paralel kuyruk 0.17.0 planında.
 
 ## 0.14.0: SSH terminali
 
@@ -119,11 +127,11 @@ Aşağıdaki yolların tamamı proje dizinine göredir:
 
 ## Son doğrulama ve mevcut çıktılar
 
-0.16.0'ın son kaynakları üzerinde hem debug hem release testleri tamamlandı:
+0.17.0'ın son kaynakları üzerinde hem debug hem release testleri tamamlandı:
 
 ```text
-./scripts/test-ssh.sh --all             → 121 XCTest, 0 failure, 0 skip   (0.16.0)
-./scripts/test-ssh.sh --all -c release  → 121 XCTest, 0 failure, 0 skip   (0.16.0)
+./scripts/test-ssh.sh --all             → 124 XCTest, 0 failure, 0 skip   (0.17.0)
+./scripts/test-ssh.sh --all -c release  → 124 XCTest, 0 failure, 0 skip   (0.17.0)
 ```
 
 Son çalıştırmalarda compiler warning yok. Testler gerçek OpenSSH/SFTP, SFTP subsystem'i kapalı ayrı SCP sunucusu, pyftpdlib 2.2.0 FTP/FTPS, WsgiDAV 4.3.5 / Cheroot 11.1.2 HTTP/HTTPS ve Docker'da iki MinIO (HTTP + HTTPS) sunucusunu kullanıyor. MinIO imajı digest ile sabitlenmiş `bitnamilegacy/minio:2025.7.23`; resmî topluluk MinIO imajları artık yayımlanmıyor. Geçici anahtarlar, CA ve dosyalar üretildi; kullanıcının üretim sunucusu/kimlik bilgileri kullanılmadı.
@@ -134,11 +142,11 @@ Mevcut çıktılar:
 
 ```text
 dist/syncSCP.app
-dist/SyncSCP-0.16.0-universal.zip
-dist/SyncSCP-0.16.0-source.zip   (untracked mockup HTML'i de içeriyor; script untracked dosyaları da paketler)
+dist/SyncSCP-0.17.0-universal.zip
+dist/SyncSCP-0.17.0-source.zip   (untracked mockup HTML'i de içeriyor; script untracked dosyaları da paketler)
 ```
 
-Universal sürüm arm64 ve x86_64 içeriyor, ad-hoc imzalı ve strict codesign kontrolünden geçti. **Fiziksel Intel testi, eski macOS testi, Developer ID imzası ve notarization yapılmadı.** GitHub Actions workflow'u repo push edildiği için GitHub'da tetiklenebilir; sonucunu doğrulamadan başarılı olduğu iddia edilmemeli. Hosted macOS runner'larda Docker olmadığından CI `SYNCSCP_SKIP_S3=1` kullanır; S3 testleri orada skip olur. Önceki 0.1–0.4 ZIP'leri de duruyor; güncel paket 0.16.0 (eski ZIP'ler `WinSCPMac-*` adını taşır).
+Universal sürüm arm64 ve x86_64 içeriyor, ad-hoc imzalı ve strict codesign kontrolünden geçti. **Fiziksel Intel testi, eski macOS testi, Developer ID imzası ve notarization yapılmadı.** GitHub Actions workflow'u repo push edildiği için GitHub'da tetiklenebilir; sonucunu doğrulamadan başarılı olduğu iddia edilmemeli. Hosted macOS runner'larda Docker olmadığından CI `SYNCSCP_SKIP_S3=1` kullanır; S3 testleri orada skip olur. Önceki 0.1–0.4 ZIP'leri de duruyor; güncel paket 0.17.0 (eski ZIP'ler `WinSCPMac-*` adını taşır).
 
 Son kayıtlar `.build/terminal-debug-tests.log`, `.build/terminal-release-tests.log`, `.build/terminal-package.log` içinde.
 

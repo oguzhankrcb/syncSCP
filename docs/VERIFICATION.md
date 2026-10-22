@@ -1,5 +1,13 @@
 # Verification record
 
+## 0.17.0 — Background transfers, retry and resume
+
+Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **124 XCTest cases, zero failures, zero skips**.
+
+- New SFTP tests against Apple's sftp-server, killing the server process mid-transfer: an interrupted 5 MB upload and 4 MB download are kept as partial files and finish on a new connection without resending what arrived; a source that changed between attempts starts over; cancellation still removes partials.
+- A scripted run of the real `CommanderModel` against the SFTP test daemon passed 16 checks: two 60 MB uploads ran at the same time on two extra ssh connections while the panes stayed usable and browsing worked; one transfer connection was killed, the job reported a retry and both files arrived byte for byte, with 18 MB not sent again; no partial files were left; a retried folder job skipped files it had already finished. The 0.15.0 session-tab scenario still passes.
+- **Not tried by me:** retries over SCP, FTP, WebDAV and S3 (they start the file over by design), a real network drop, the Settings steppers and the quit warning in the running app.
+
 ## 0.16.0 — Saved passwords
 
 Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **121 XCTest cases, zero failures, zero skips**.

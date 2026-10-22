@@ -19,6 +19,27 @@ public protocol RemoteFileClient: Actor {
 
 extension SFTPClient: RemoteFileClient {}
 
+/// Lets a retried transfer continue a partial (.filepart) file left by a lost connection. One
+/// instance per file; the partial is used only while the source keeps the same size and time.
+public final class TransferResume: @unchecked Sendable {
+    public struct Version: Equatable, Sendable { let size: UInt64; let modified: Date? }
+    private let lock = NSLock()
+    private var partial: String?
+    private var source: Version?
+    private var resumed: UInt64 = 0
+    public init() {}
+    /// Bytes that did not have to be sent again, over all attempts.
+    public var resumedBytes: UInt64 { lock.lock(); defer { lock.unlock() }; return resumed }
+    func take(source current: Version) -> String? {
+        lock.lock(); defer { lock.unlock() }
+        guard let partial, source == current else { return nil }
+        return partial
+    }
+    func remember(_ path: String, source current: Version) { lock.lock(); partial = path; source = current; lock.unlock() }
+    func record(resumedFrom offset: UInt64) { lock.lock(); resumed += offset; lock.unlock() }
+    func finish() { lock.lock(); partial = nil; source = nil; lock.unlock() }
+}
+
 /// Protocol-independent entry point used by every UI operation.
 public actor RemoteSession {
     private var backend: (any RemoteFileClient)?
@@ -59,12 +80,24 @@ public actor RemoteSession {
     public func rename(_ source: String, to destination: String, replace: Bool = false) async throws { try await client().rename(source, to: destination, replace: replace) }
     public func chmod(_ path: String, mode: UInt32) async throws { try await client().chmod(path, mode: mode) }
     public func remove(_ path: String, recursive: Bool = false, token: CancellationToken = CancellationToken()) async throws { try await client().remove(path, recursive: recursive, token: token) }
+    /// `resume` is honored by SFTP; other protocols start over on a retry.
     public func upload(local: URL, remote: String, replace: Bool = false, expectedDestination: FileEntry? = nil,
-                       token: CancellationToken = CancellationToken(), progress: @escaping @Sendable (UInt64, UInt64) -> Void = { _, _ in }) async throws {
-        try await client().upload(local: local, remote: remote, replace: replace, expectedDestination: expectedDestination, token: token, progress: progress)
+                       token: CancellationToken = CancellationToken(), resume: TransferResume? = nil,
+                       progress: @escaping @Sendable (UInt64, UInt64) -> Void = { _, _ in }) async throws {
+        if let sftp = backend as? SFTPClient {
+            try await sftp.upload(local: local, remote: remote, replace: replace, expectedDestination: expectedDestination, token: token, resume: resume, progress: progress)
+        } else {
+            try await client().upload(local: local, remote: remote, replace: replace, expectedDestination: expectedDestination, token: token, progress: progress)
+        }
     }
     public func download(remote: String, local: URL, replace: Bool = false, token: CancellationToken = CancellationToken(),
-                         progress: @escaping @Sendable (UInt64, UInt64) -> Void = { _, _ in }) async throws {
-        try await client().download(remote: remote, local: local, replace: replace, token: token, progress: progress)
+                         resume: TransferResume? = nil, progress: @escaping @Sendable (UInt64, UInt64) -> Void = { _, _ in }) async throws {
+        if let sftp = backend as? SFTPClient {
+            try await sftp.download(remote: remote, local: local, replace: replace, token: token, resume: resume, progress: progress)
+        } else {
+            try await client().download(remote: remote, local: local, replace: replace, token: token, progress: progress)
+        }
     }
+    /// Whether retried transfers continue partial files (SFTP) instead of starting over.
+    public var resumesTransfers: Bool { backend is SFTPClient }
 }

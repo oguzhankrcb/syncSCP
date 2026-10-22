@@ -18,10 +18,20 @@ struct ExternalEditItem: Identifiable {
 }
 enum JobState: String { case waiting = "Waiting", running = "Transferring", done = "Complete", failed = "Failed", cancelled = "Cancelled" }
 
+/// What a job already finished, so a retry after a lost connection neither redoes nor refuses it.
+final class TransferMemory {
+    var completed = Set<String>()
+    var createdDirectories = Set<String>()
+    private var resumes: [String: TransferResume] = [:]
+    func resume(_ destination: String) -> TransferResume {
+        if let existing = resumes[destination] { return existing }
+        let created = TransferResume(); resumes[destination] = created; return created
+    }
+}
+
 struct TransferJob: Identifiable {
     let id = UUID()
-    /// The connection (session tab) the job runs on; it keeps running when another tab is shown.
-    let client: RemoteSession
+    /// The session tab the job belongs to; it runs on its own background connection to that site.
     let session: UUID
     let siteName: String
     let direction: TransferDirection
@@ -29,6 +39,7 @@ struct TransferJob: Identifiable {
     let destination: String
     let replace: Bool
     let token = CancellationToken()
+    var memory = TransferMemory()
     var state = JobState.waiting
     var fraction = 0.0
     var detail = "Waiting"
@@ -47,6 +58,9 @@ struct SessionTab: Identifiable {
     var localPath: String
     let connectedAt = Date()
     var history: [PaneSide: (back: [String], forward: [String])] = [:]
+    /// Kept in memory while the tab is open (like WinSCP) to open background transfer connections; never written anywhere.
+    let password: String
+    let sessionToken: String
 }
 
 struct LogLine: Identifiable { let id = UUID(); let date = Date(); let text: String; let isError: Bool }
@@ -66,7 +80,6 @@ final class CommanderModel: ObservableObject {
     @Published var connected = false
     @Published var connecting = false
     @Published var operationBusy = false
-    @Published var runningQueue = false
     @Published var currentSite: Site?
     @Published var showConnection = false
     @Published var requestedSite: Site?
@@ -106,7 +119,14 @@ final class CommanderModel: ObservableObject {
     var client: RemoteSession { tabs.first { $0.id == activeTabID }?.client ?? idleClient }
     private(set) var store: SiteStore?
 
-    var busy: Bool { connecting || operationBusy || runningQueue }
+    /// Transfers run on their own connections, so they do not make the panes busy.
+    var busy: Bool { connecting || operationBusy }
+    var runningQueue: Bool { jobs.contains { $0.state == .running } }
+    static let maxTransfersKey = "MaxParallelTransfers", retriesKey = "TransferRetries"
+    private var maxTransfers: Int { let value = UserDefaults.standard.integer(forKey: Self.maxTransfersKey); return value == 0 ? 2 : min(max(value, 1), 8) }
+    private var maxRetries: Int { UserDefaults.standard.object(forKey: Self.retriesKey) == nil ? 3 : min(max(UserDefaults.standard.integer(forKey: Self.retriesKey), 0), 10) }
+    /// Idle background transfer connections per session tab, reused by later jobs.
+    private var idleTransferConnections: [UUID: [RemoteSession]] = [:]
     // The ".." row can be selected for navigation but is never part of an action.
     var canUpload: Bool { connected && !busy && !localSelection.subtracting([ParentRow.id]).isEmpty }
     var canDownload: Bool { connected && !busy && !remoteSelection.subtracting([ParentRow.id]).isEmpty }
@@ -124,7 +144,7 @@ final class CommanderModel: ObservableObject {
         catch { self.error = error.localizedDescription }
         if custom == nil { refreshSavedPasswords() }
         refreshLocal()
-        appendLog("syncSCP 0.16.0 · Community development preview")
+        appendLog("syncSCP 0.17.0 · Community development preview")
     }
 
     /// Carries preferences over from the bundle identifier used before the rename to syncSCP.
@@ -193,8 +213,8 @@ final class CommanderModel: ObservableObject {
 
     /// WinSCP's Duplicate Session: the login sheet with this site, so a password can be entered again.
     func duplicateSession() {
-        guard let site = currentSite, !connecting else { return }
-        requestedSite = site; showConnection = true
+        guard let site = currentSite, canConnect, let tab = tabs.first(where: { $0.id == activeTabID }) else { return }
+        connect(site: site, password: tab.password, sessionToken: tab.sessionToken)
     }
 
     /// Ends one connection: its queued transfers are cancelled and its edits stop (unsent changes are kept).
@@ -208,7 +228,8 @@ final class CommanderModel: ObservableObject {
         }
         appendLog("\(tab.site.displayName): \(message)")
         if tabs.isEmpty { status = "Disconnected" }
-        Task { await tab.client.disconnect() }
+        let idle = idleTransferConnections.removeValue(forKey: id) ?? []
+        Task { await tab.client.disconnect(); for connection in idle { await connection.disconnect() } }
     }
 
     func saveSite(_ site: Site) {
@@ -354,15 +375,8 @@ final class CommanderModel: ObservableObject {
         connecting = true; status = "Connecting to \(site.host)…"
         Task {
             defer { connecting = false }
-            var credential: String?
-            defer {
-                if let credential, !SessionCredential.remove(credential) {
-                    report(ClientError.invalid("Keychain could not remove the temporary SSH credential. Remove account \(credential) for service io.github.oguzhankrcb.syncscp.session using Keychain Access."))
-                }
-            }
             do {
                 try site.validate()
-                var configuration: SSHConfiguration?
                 if site.transferProtocol.usesSSH {
                     guard let store else { throw ClientError.invalid("The host key store is unavailable.") }
                     // A tunnel's bastion is verified first; the target key is then read through it.
@@ -377,16 +391,14 @@ final class CommanderModel: ObservableObject {
                         guard alert.runModal() == .alertFirstButtonReturn else { status = "Connection cancelled"; return }
                         try HostTrust.trust(identity, file: store.knownHostsFile)
                     }
-                    if !password.isEmpty { credential = try SessionCredential.store(password) }
-                    configuration = SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path,
-                                                     askpassExecutable: Bundle.main.executablePath ?? CommandLine.arguments[0], credentialID: credential)
                 }
-                let home = try await client.connect(site: site, password: password, sshConfiguration: configuration, s3SessionToken: sessionToken)
+                let home = try await open(client, site: site, password: password, sessionToken: sessionToken)
                 let path = site.remotePath.isEmpty || site.remotePath == "." ? home : try await client.realpath(site.remotePath)
                 let entries = try await client.list(path)
                 storeActiveTab()
                 let local = FileManager.default.fileExists(atPath: site.localPath) ? site.localPath : localPath
-                let tab = SessionTab(id: UUID(), client: client, site: site, remotePath: path, remoteEntries: entries, remoteHome: home, localPath: local)
+                let tab = SessionTab(id: UUID(), client: client, site: site, remotePath: path, remoteEntries: entries, remoteHome: home, localPath: local,
+                                     password: password, sessionToken: sessionToken)
                 tabs.append(tab); show(tab); showConnection = false
                 if savePassword, !password.isEmpty, sites.contains(where: { $0.id == site.id }) {
                     do { try SavedPasswords.save(password, for: site.id); refreshSavedPasswords(); appendLog("Saved the password of \(site.displayName) in Keychain.") }
@@ -400,6 +412,25 @@ final class CommanderModel: ObservableObject {
                 self.error = error.localizedDescription; status = "Connection failed"; appendLog(error.localizedDescription, error: true)
             }
         }
+    }
+
+    /// Connects `client` to an already trusted site. An SSH password reaches ssh through askpass
+    /// from a Keychain item that exists only for the duration of the login.
+    private func open(_ client: RemoteSession, site: Site, password: String, sessionToken: String) async throws -> String {
+        var configuration: SSHConfiguration?
+        var credential: String?
+        defer {
+            if let credential, !SessionCredential.remove(credential) {
+                appendLog("Keychain could not remove the temporary SSH credential. Remove account \(credential) for service io.github.oguzhankrcb.syncscp.session using Keychain Access.", error: true)
+            }
+        }
+        if site.transferProtocol.usesSSH {
+            guard let store else { throw ClientError.invalid("The host key store is unavailable.") }
+            if !password.isEmpty { credential = try SessionCredential.store(password) }
+            configuration = SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path,
+                                             askpassExecutable: Bundle.main.executablePath ?? CommandLine.arguments[0], credentialID: credential)
+        }
+        return try await client.connect(site: site, password: password, sshConfiguration: configuration, s3SessionToken: sessionToken)
     }
 
     /// Closes the shown session tab.
@@ -510,11 +541,11 @@ final class CommanderModel: ObservableObject {
         // A directory merge needs explicit approval even if its root did not exist at listing time.
         let siteName = currentSite?.displayName ?? ""
         for entry in entries {
-            jobs.append(TransferJob(client: client, session: sessionID, siteName: siteName, direction: direction, entry: entry,
+            jobs.append(TransferJob(session: sessionID, siteName: siteName, direction: direction, entry: entry,
                                     destination: direction == .upload ? RemotePath.join(remotePath, entry.name) : URL(fileURLWithPath: localPath).appendingPathComponent(entry.name).path,
                                     replace: replace))
         }
-        bottomTab = .queue; showBottom = true; startQueue()
+        bottomTab = .queue; showBottom = true; scheduleQueue()
     }
 
     /// WinSCP's F5: copy the active pane's selection to the other pane.
@@ -548,53 +579,104 @@ final class CommanderModel: ObservableObject {
         catch { appendLog("Could not remember the last directory: \(error.localizedDescription)", error: true) }
     }
 
-    private func startQueue() {
-        guard !runningQueue else { return }; runningQueue = true
-        Task {
-            defer { runningQueue = false; refresh() }
-            while let index = jobs.firstIndex(where: { $0.state == .waiting }) {
-                let job = jobs[index]
-                if job.token.isCancelled { jobs[index].state = .cancelled; continue }
-                jobs[index].state = .running; jobs[index].detail = "Preparing…"
-                status = "\(job.direction.rawValue): \(job.entry.name)"
-                appendLog("\(job.direction.rawValue) \(job.entry.path) → \(job.destination)")
-                do {
-                    try await transferTree(job.entry, destination: job.destination, job: job)
-                    jobs[index].state = .done; jobs[index].fraction = 1; jobs[index].detail = "Complete"
-                    appendLog("Transfer complete: \(job.entry.name)")
-                } catch {
-                    jobs[index].state = job.token.isCancelled ? .cancelled : .failed
-                    jobs[index].detail = error.localizedDescription
-                    appendLog("\(job.entry.name): \(error.localizedDescription)", error: !job.token.isCancelled)
-                    if case ClientError.connection = error { closeFailedConnection(job.session) }
-                }
-            }
-            status = jobs.contains(where: { $0.state == .failed }) ? "Transfers finished with errors — see queue" : "Transfers finished"
+    /// Starts waiting jobs up to the Settings limit; each runs on a background connection of its tab.
+    private func scheduleQueue() {
+        while jobs.filter({ $0.state == .running }).count < maxTransfers, let index = jobs.firstIndex(where: { $0.state == .waiting }) {
+            if jobs[index].token.isCancelled { jobs[index].state = .cancelled; jobs[index].detail = "Cancelled"; continue }
+            jobs[index].state = .running; jobs[index].detail = "Connecting…"
+            let job = jobs[index]
+            Task { await run(job) }
         }
     }
 
-    private func transferTree(_ entry: FileEntry, destination: String, job: TransferJob, depth: Int = 0) async throws {
+    private func updateJob(_ id: UUID, _ change: (inout TransferJob) -> Void) {
+        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
+        change(&jobs[index])
+    }
+
+    /// One job, retried on a fresh connection when the connection drops; SFTP continues partial files.
+    private func run(_ job: TransferJob) async {
+        appendLog("\(job.direction.rawValue) \(job.entry.path) → \(job.destination)")
+        var attempt = 0
+        while true {
+            var connection: RemoteSession?
+            do {
+                try job.token.check()
+                let client = try await acquireTransferConnection(job.session)
+                connection = client
+                updateJob(job.id) { $0.detail = "Transferring…" }
+                try await transferTree(job.entry, destination: job.destination, job: job, client: client)
+                releaseTransferConnection(client, session: job.session, healthy: true)
+                updateJob(job.id) { $0.state = .done; $0.fraction = 1; $0.detail = "Complete" }
+                appendLog("Transfer complete: \(job.entry.name)")
+                break
+            } catch {
+                var lost = false
+                if case ClientError.connection = error { lost = true }
+                if let connection { releaseTransferConnection(connection, session: job.session, healthy: !lost) }
+                if lost, !job.token.isCancelled, attempt < maxRetries, tabs.contains(where: { $0.id == job.session }) {
+                    attempt += 1
+                    let delay = min(2 * attempt, 10)
+                    updateJob(job.id) { $0.detail = "Connection lost — retrying in \(delay) s (\(attempt) of \(self.maxRetries))" }
+                    appendLog("\(job.entry.name): connection lost; retrying (\(attempt) of \(maxRetries)).", error: true)
+                    try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
+                    continue
+                }
+                updateJob(job.id) { $0.state = job.token.isCancelled ? .cancelled : .failed; $0.detail = error.localizedDescription }
+                appendLog("\(job.entry.name): \(error.localizedDescription)", error: !job.token.isCancelled)
+                break
+            }
+        }
+        if job.session == sessionID {
+            refreshLocal()
+            if connected, !operationBusy { navigateRemote(remotePath, recordHistory: false) }
+        }
+        if !runningQueue && !jobs.contains(where: { $0.state == .waiting }) {
+            status = jobs.contains(where: { $0.state == .failed }) ? "Transfers finished with errors — see queue" : "Transfers finished"
+        }
+        scheduleQueue()
+    }
+
+    private func acquireTransferConnection(_ session: UUID) async throws -> RemoteSession {
+        guard let tab = tabs.first(where: { $0.id == session }) else { throw ClientError.cancelled }
+        if var idle = idleTransferConnections[session], let connection = idle.popLast() {
+            idleTransferConnections[session] = idle; return connection
+        }
+        let connection = RemoteSession()
+        _ = try await open(connection, site: tab.site, password: tab.password, sessionToken: tab.sessionToken)
+        return connection
+    }
+
+    private func releaseTransferConnection(_ connection: RemoteSession, session: UUID, healthy: Bool) {
+        guard healthy, tabs.contains(where: { $0.id == session }) else { Task { await connection.disconnect() }; return }
+        idleTransferConnections[session, default: []].append(connection)
+    }
+
+    private func transferTree(_ entry: FileEntry, destination: String, job: TransferJob, client: RemoteSession, depth: Int = 0) async throws {
         try job.token.check()
         guard depth < 64 else { throw ClientError.unsupported("Directory transfers are limited to 64 levels.") }
         guard entry.isDirectory || entry.isRegularFile else { throw ClientError.unsupported("Symbolic links and special files are not transferred: \(entry.name)") }
         if entry.isDirectory {
+            let memory = job.memory
             if job.direction == .upload {
-                if try await job.client.exists(destination) {
-                    let target = try await job.client.stat(destination)
-                    guard target.isDirectory, job.replace else { throw ClientError.conflict("Destination exists: \(destination)") }
-                } else { try await job.client.mkdir(destination) }
-                for child in try LocalFiles.list(entry.path) { try await transferTree(child, destination: RemotePath.join(destination, child.name), job: job, depth: depth + 1) }
+                if try await client.exists(destination) {
+                    let target = try await client.stat(destination)
+                    guard target.isDirectory, job.replace || memory.createdDirectories.contains(destination) else { throw ClientError.conflict("Destination exists: \(destination)") }
+                } else { try await client.mkdir(destination); memory.createdDirectories.insert(destination) }
+                for child in try LocalFiles.list(entry.path) { try await transferTree(child, destination: RemotePath.join(destination, child.name), job: job, client: client, depth: depth + 1) }
             } else {
                 let manager = FileManager.default
                 if manager.fileExists(atPath: destination) {
                     let attrs = try manager.attributesOfItem(atPath: destination)
-                    guard attrs[.type] as? FileAttributeType == .typeDirectory, job.replace else { throw ClientError.conflict("Destination exists: \(destination)") }
-                } else { try manager.createDirectory(atPath: destination, withIntermediateDirectories: false) }
-                for child in try await job.client.list(entry.path) {
-                    try await transferTree(child, destination: URL(fileURLWithPath: destination).appendingPathComponent(child.name).path, job: job, depth: depth + 1)
+                    guard attrs[.type] as? FileAttributeType == .typeDirectory, job.replace || memory.createdDirectories.contains(destination) else { throw ClientError.conflict("Destination exists: \(destination)") }
+                } else { try manager.createDirectory(atPath: destination, withIntermediateDirectories: false); memory.createdDirectories.insert(destination) }
+                for child in try await client.list(entry.path) {
+                    try await transferTree(child, destination: URL(fileURLWithPath: destination).appendingPathComponent(child.name).path, job: job, client: client, depth: depth + 1)
                 }
             }
         } else {
+            guard !job.memory.completed.contains(destination) else { return }
+            let resume = job.memory.resume(destination)
             let update: @Sendable (UInt64, UInt64) -> Void = { [weak self] done, total in
                 Task { @MainActor [weak self] in
                     guard let self, let index = self.jobs.firstIndex(where: { $0.id == job.id }), self.jobs[index].state == .running else { return }
@@ -603,15 +685,26 @@ final class CommanderModel: ObservableObject {
                 }
             }
             if job.direction == .upload {
-                try await job.client.upload(local: URL(fileURLWithPath: entry.path), remote: destination, replace: job.replace, token: job.token, progress: update)
+                try await client.upload(local: URL(fileURLWithPath: entry.path), remote: destination, replace: job.replace, token: job.token, resume: resume, progress: update)
             } else {
-                try await job.client.download(remote: entry.path, local: URL(fileURLWithPath: destination), replace: job.replace, token: job.token, progress: update)
+                try await client.download(remote: entry.path, local: URL(fileURLWithPath: destination), replace: job.replace, token: job.token, resume: resume, progress: update)
             }
+            job.memory.completed.insert(destination)
         }
     }
 
     func cancelJob(_ id: UUID) { jobs.first(where: { $0.id == id })?.token.cancel() }
-    func clearCompleted() { guard !runningQueue else { return }; jobs.removeAll { $0.state != .waiting && $0.state != .running } }
+    func clearCompleted() { jobs.removeAll { $0.state != .waiting && $0.state != .running } }
+
+    /// Puts a failed or cancelled job back in the queue; a folder skips the files it already finished.
+    func retryJob(_ id: UUID) {
+        guard let job = jobs.first(where: { $0.id == id }), job.state == .failed || job.state == .cancelled,
+              tabs.contains(where: { $0.id == job.session }) else { return }
+        var again = TransferJob(session: job.session, siteName: job.siteName, direction: job.direction, entry: job.entry, destination: job.destination, replace: job.replace)
+        again.memory = job.memory; again.detail = "Waiting"
+        jobs.removeAll { $0.id == id }; jobs.append(again)
+        scheduleQueue()
+    }
 
     func promptMkdir() {
         guard !busy, activeSide == .local || connected else { return }

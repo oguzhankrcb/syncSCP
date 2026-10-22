@@ -163,8 +163,18 @@ public actor SFTPClient {
         }
     }
 
+    /// The ssh (or local sftp-server) process, for tests that cut the connection.
+    var transportProcessID: Int32? { transport?.processIdentifier }
+
     public func upload(local: URL, remote: String, replace: Bool = false, expectedDestination: FileEntry? = nil, token: CancellationToken = CancellationToken(),
                        progress: @escaping @Sendable (UInt64, UInt64) -> Void = { _, _ in }) throws {
+        try upload(local: local, remote: remote, replace: replace, expectedDestination: expectedDestination, token: token, resume: nil, progress: progress)
+    }
+
+    /// With `resume`, a lost connection keeps the remote .filepart, and the next attempt with the
+    /// same `resume` continues from its size if the local file is unchanged.
+    public func upload(local: URL, remote: String, replace: Bool = false, expectedDestination: FileEntry? = nil, token: CancellationToken = CancellationToken(),
+                       resume: TransferResume?, progress: @escaping @Sendable (UInt64, UInt64) -> Void = { _, _ in }) throws {
         try token.check()
         let attributes = try FileManager.default.attributesOfItem(atPath: local.path)
         guard attributes[.type] as? FileAttributeType == .typeRegular else {
@@ -183,22 +193,35 @@ public actor SFTPClient {
             guard existing.isRegularFile else { throw ClientError.conflict("The destination is not a regular file: \(remote)") }
             mode = existing.permissions
         }
-        let temporary = RemotePath.join(RemotePath.parent(remote), ".syncscp-" + UUID().uuidString + ".filepart")
-        let file = try handle(3, temporary, flags: 2 | 8 | 32)
+        let sourceVersion = TransferResume.Version(size: size, modified: attributes[.modificationDate] as? Date)
+        var offset: UInt64 = 0
+        var temporary = RemotePath.join(RemotePath.parent(remote), ".syncscp-" + UUID().uuidString + ".filepart")
+        var flags: UInt32 = 2 | 8 | 32 // write, create, truncate
+        if let previous = resume?.take(source: sourceVersion), let partial = try? stat(previous), partial.isRegularFile, partial.size <= size {
+            temporary = previous; offset = partial.size; flags = 2
+            resume?.record(resumedFrom: offset)
+        }
+        resume?.remember(temporary, source: sourceVersion)
+        let file = try handle(3, temporary, flags: flags)
         var opened = true
         var committed = false
+        var keepPartial = false
         defer {
             if opened { try? closeHandle(file) }
-            if !committed { _ = try? status(request(13) { $0.string(temporary) }) }
+            if !committed && !keepPartial { _ = try? status(request(13) { $0.string(temporary) }) }
         }
         let source = try FileHandle(forReadingFrom: local)
         defer { try? source.close() }
-        var offset: UInt64 = 0
-        progress(0, size)
+        try source.seek(toOffset: offset)
+        progress(offset, size)
+        do {
         while let data = try source.read(upToCount: 64 * 1024), !data.isEmpty {
             try token.check()
             _ = try status(request(6) { $0.bytes(file); $0.uint64(offset); $0.bytes(data) })
             offset += UInt64(data.count); progress(offset, size)
+        }
+        } catch ClientError.connection(let detail) where resume != nil {
+            keepPartial = true; throw ClientError.connection(detail)
         }
         try token.check()
         let sourceAfter = try FileManager.default.attributesOfItem(atPath: local.path)
@@ -221,28 +244,44 @@ public actor SFTPClient {
         }
         if replace, try exists(remote) { try rename(temporary, to: remote, replace: true) }
         else { try rename(temporary, to: remote) }
-        committed = true
+        committed = true; resume?.finish()
         progress(offset, offset)
     }
 
     public func download(remote: String, local: URL, replace: Bool = false, token: CancellationToken = CancellationToken(),
                          progress: @escaping @Sendable (UInt64, UInt64) -> Void = { _, _ in }) throws {
+        try download(remote: remote, local: local, replace: replace, token: token, resume: nil, progress: progress)
+    }
+
+    /// With `resume`, a lost connection keeps the local .filepart, and the next attempt continues
+    /// from its size if the remote file still has the same size and modification time.
+    public func download(remote: String, local: URL, replace: Bool = false, token: CancellationToken = CancellationToken(),
+                         resume: TransferResume?, progress: @escaping @Sendable (UInt64, UInt64) -> Void = { _, _ in }) throws {
         try token.check()
         let info = try stat(remote)
         guard info.isRegularFile else { throw ClientError.unsupported("Only regular files can be downloaded. Symbolic links and special files are not followed.") }
         let manager = FileManager.default
         if manager.fileExists(atPath: local.path), !replace { throw ClientError.conflict("\(local.lastPathComponent) already exists. Confirm replacement first.") }
-        let temporary = local.deletingLastPathComponent().appendingPathComponent(".syncscp-\(UUID().uuidString).filepart")
-        guard manager.createFile(atPath: temporary.path, contents: nil, attributes: [.posixPermissions: 0o600]) else {
+        let sourceVersion = TransferResume.Version(size: info.size, modified: info.modified)
+        var temporary = local.deletingLastPathComponent().appendingPathComponent(".syncscp-\(UUID().uuidString).filepart")
+        var offset: UInt64 = 0
+        if let previous = resume?.take(source: sourceVersion), let size = (try? manager.attributesOfItem(atPath: previous)[.size] as? NSNumber)?.uint64Value,
+           size <= info.size, (previous as NSString).deletingLastPathComponent == temporary.deletingLastPathComponent().path {
+            temporary = URL(fileURLWithPath: previous); offset = size
+            resume?.record(resumedFrom: offset)
+        } else if !manager.createFile(atPath: temporary.path, contents: nil, attributes: [.posixPermissions: 0o600]) {
             throw ClientError.invalid("Cannot create a temporary download file.")
         }
-        defer { try? manager.removeItem(at: temporary) }
+        resume?.remember(temporary.path, source: sourceVersion)
+        var keepPartial = false
+        defer { if !keepPartial { try? manager.removeItem(at: temporary) } }
         let target = try FileHandle(forWritingTo: temporary)
         defer { try? target.close() }
+        try target.truncate(atOffset: offset); try target.seek(toOffset: offset)
         let file = try handle(3, remote, flags: 1)
         defer { try? closeHandle(file) }
-        var offset: UInt64 = 0
-        progress(0, info.size)
+        progress(offset, info.size)
+        do {
         while true {
             try token.check()
             let response = try request(5) { $0.bytes(file); $0.uint64(offset); $0.uint32(64 * 1024) }
@@ -255,6 +294,9 @@ public actor SFTPClient {
             let data = try reader.bytes()
             guard !data.isEmpty, data.count <= 64 * 1024 else { throw ClientError.protocolError("Invalid SFTP data block.") }
             try target.write(contentsOf: data); offset += UInt64(data.count); progress(offset, info.size)
+        }
+        } catch ClientError.connection(let detail) where resume != nil {
+            keepPartial = true; try? target.synchronize(); throw ClientError.connection(detail)
         }
         try token.check()
         guard offset == info.size else { throw ClientError.conflict("The remote file changed during download. Download it again.") }
@@ -271,6 +313,7 @@ public actor SFTPClient {
             if errno == EEXIST { throw ClientError.conflict("\(local.lastPathComponent) already exists.") }
             throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: local.path])
         }
+        resume?.finish()
         progress(offset, offset)
     }
 }

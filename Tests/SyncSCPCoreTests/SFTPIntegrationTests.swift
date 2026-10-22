@@ -233,4 +233,73 @@ final class SFTPIntegrationTests: XCTestCase {
         try await client.upload(local: source, remote: target.path)
         XCTAssertEqual(try String(contentsOf: target), "long filename")
     }
+
+    /// Kills the SFTP server once `threshold` bytes have moved, like a dropped connection.
+    private func cutOnce(after threshold: UInt64, pid: Int32) -> @Sendable (UInt64, UInt64) -> Void {
+        let done = CancellationToken()
+        return { sent, _ in
+            if sent >= threshold, !done.isCancelled { done.cancel(); kill(pid, SIGKILL) }
+        }
+    }
+
+    func testInterruptedUploadResumesFromThePartialFile() async throws {
+        let data = Data((0..<5_000_000).map { UInt8(truncatingIfNeeded: $0 &* 7 &+ $0 >> 9) })
+        let source = local.appendingPathComponent("big upload.bin"); try data.write(to: source)
+        let destination = try await client.realpath(".") + "/big upload.bin"
+        let resume = TransferResume()
+        let currentPID = await client.transportProcessID; let pid = try XCTUnwrap(currentPID)
+        do {
+            try await client.upload(local: source, remote: destination, resume: resume, progress: cutOnce(after: 1_500_000, pid: pid))
+            XCTFail("The upload survived a killed server")
+        } catch ClientError.connection {}
+        let partials = try FileManager.default.contentsOfDirectory(atPath: remote.path).filter { $0.hasSuffix(".filepart") }
+        XCTAssertEqual(partials.count, 1, "the partial file is kept for resuming")
+        // A new connection, as a retry would open, continues instead of starting over.
+        client = SFTPClient(); _ = try await client.connectLocalServer(root: remote.path)
+        try await client.upload(local: source, remote: destination, resume: resume)
+        XCTAssertEqual(try Data(contentsOf: remote.appendingPathComponent("big upload.bin")), data)
+        XCTAssertGreaterThanOrEqual(resume.resumedBytes, 1_500_000)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: remote.path).filter { $0.hasSuffix(".filepart") }.isEmpty)
+    }
+
+    func testInterruptedDownloadResumesAndAChangedSourceStartsOver() async throws {
+        let data = Data((0..<4_000_000).map { UInt8(truncatingIfNeeded: $0 &* 13) })
+        try data.write(to: remote.appendingPathComponent("big download.bin"))
+        let path = try await client.realpath(".") + "/big download.bin"
+        let target = local.appendingPathComponent("big download.bin")
+        let resume = TransferResume()
+        let currentPID = await client.transportProcessID; let pid = try XCTUnwrap(currentPID)
+        do { try await client.download(remote: path, local: target, resume: resume, progress: cutOnce(after: 1_000_000, pid: pid)); XCTFail("The download survived a killed server") }
+        catch ClientError.connection {}
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: local.path).filter { $0.hasSuffix(".filepart") }.count, 1)
+        client = SFTPClient(); _ = try await client.connectLocalServer(root: remote.path)
+        try await client.download(remote: path, local: target, resume: resume)
+        XCTAssertEqual(try Data(contentsOf: target), data)
+        XCTAssertGreaterThanOrEqual(resume.resumedBytes, 1_000_000)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: local.path).filter { $0.hasSuffix(".filepart") }.isEmpty)
+
+        // If the server file changes between attempts, the partial is not reused.
+        let other = local.appendingPathComponent("second.bin"), again = TransferResume()
+        let secondPID = await client.transportProcessID; let pid2 = try XCTUnwrap(secondPID)
+        do { try await client.download(remote: path, local: other, resume: again, progress: cutOnce(after: 1_000_000, pid: pid2)); XCTFail("survived") }
+        catch ClientError.connection {}
+        let changed = Data(repeating: 0x5A, count: 4_000_001)
+        try changed.write(to: remote.appendingPathComponent("big download.bin"))
+        client = SFTPClient(); _ = try await client.connectLocalServer(root: remote.path)
+        try await client.download(remote: path, local: other, resume: again)
+        XCTAssertEqual(try Data(contentsOf: other), changed)
+        XCTAssertEqual(again.resumedBytes, 0)
+    }
+
+    func testCancellationStillRemovesPartialFilesWhenResumable() async throws {
+        let data = Data(repeating: 1, count: 3_000_000)
+        let source = local.appendingPathComponent("cancel.bin"); try data.write(to: source)
+        let token = CancellationToken()
+        let destination = try await client.realpath(".") + "/cancel.bin"
+        do {
+            try await client.upload(local: source, remote: destination, token: token, resume: TransferResume()) { sent, _ in if sent > 500_000 { token.cancel() } }
+            XCTFail("Cancellation was ignored")
+        } catch ClientError.cancelled {}
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: remote.path).isEmpty)
+    }
 }

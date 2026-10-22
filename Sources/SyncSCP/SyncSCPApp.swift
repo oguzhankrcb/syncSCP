@@ -23,7 +23,7 @@ struct SyncSCPApp: App {
         Window("syncSCP", id: "commander") {
             CommanderView(model: model)
                 .frame(minWidth: 1000, minHeight: 640)
-                .onAppear { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
+                .onAppear { delegate.model = model; NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
         }
         .defaultSize(width: 1320, height: 840)
         Settings { PreferencesView(model: model) }
@@ -82,7 +82,7 @@ struct SyncSCPApp: App {
                 Button("About syncSCP") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "syncSCP",
-                        .applicationVersion: "0.16.0 — Development Preview",
+                        .applicationVersion: "0.17.0 — Development Preview",
                         .credits: NSAttributedString(string: "An independent macOS file manager inspired by WinSCP's workflows; not affiliated with the WinSCP project.\nWinSCP is by Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }
@@ -100,7 +100,16 @@ enum FunctionKey {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
+    weak var model: CommanderModel?
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if let model = model, model.pendingCount > 0 {
+            let alert = NSAlert(); alert.alertStyle = .warning
+            alert.messageText = "Quit while \(model.pendingCount) transfer(s) are running or waiting?"
+            alert.informativeText = "They stop now and may leave hidden .syncscp-….filepart files; start them again later."
+            alert.addButton(withTitle: "Quit"); alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
+        }
         // ⌘Q in a terminal usually means "close this terminal"; quitting stays one click away.
         if let terminal = TerminalWindowController.controller(of: NSApp.keyWindow) {
             let alert = NSAlert()

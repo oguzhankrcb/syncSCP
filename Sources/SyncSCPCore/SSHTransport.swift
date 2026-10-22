@@ -182,6 +182,8 @@ final class SSHTransport: @unchecked Sendable {
 
     deinit { close() }
 
+    var processIdentifier: Int32 { process.processIdentifier }
+
     func close() {
         guard !closed else { return }; closed = true
         errors.fileHandleForReading.readabilityHandler = nil

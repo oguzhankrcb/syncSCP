@@ -12,7 +12,7 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | SSH key / agent / password | Implemented | Opt-in saved passwords in Keychain with optional Touch ID, also imported from WinSCP; hardware-key and keyboard-interactive coverage, GSSAPI remain |
 | Host-key verification | Implemented | Key rotation UI, import/export, SSH config integration |
 | Files / recursive folders | Implemented | Symlink transfer policy, ownership, ACLs, extended attributes |
-| Background transfer queue | Partial | Resume, retry, parallel workers, rate limits, queue persistence |
+| Background transfer queue | Implemented | Background connections per site, parallel workers (Settings), automatic retry after a lost connection, SFTP resume of partial files, retry button; rate limits, queue persistence across launches and resume for FTP/WebDAV/S3/SCP remain |
 | FTP / explicit & implicit FTPS | Implemented baseline | Verified TLS, MLSD/Unix/DOS LIST, transfers and operations; active mode, proxies, advanced interoperability, resume remaining |
 | SCP protocol | Implemented baseline | Real legacy SCP and shell/stat file management; Unix server requirements, line-break limits, Linux interoperability, and remote rename races documented in [SCP.md](SCP.md) |
 | WebDAV / WebDAVS | Implemented baseline | Verified HTTPS, PROPFIND/XML, transfers, operations and ETag replacement; destination character limits, locks, authentication/vendor interoperability and timestamps documented in [WEBDAV.md](WEBDAV.md) |
