@@ -55,7 +55,12 @@ struct SyncSCPApp: App {
                     Button("New File…") { model.promptNewFile() }.keyboardShortcut(FunctionKey.f4, modifiers: .shift).disabled(model.busy)
                     Button("New Folder…") { model.promptMkdir() }.keyboardShortcut(FunctionKey.f7, modifiers: []).disabled(model.busy)
                     Button("Delete…") { model.deleteSelected() }.keyboardShortcut(FunctionKey.f8, modifiers: []).disabled(model.activeSelection.isEmpty || model.busy)
+                    Button("Duplicate on Server…") { model.duplicateRemote() }.keyboardShortcut(FunctionKey.f5, modifiers: .shift).disabled(model.activeSide != .remote || model.activeSelection.isEmpty || model.busy)
+                    Button("Move on Server To…") { model.moveRemote() }.keyboardShortcut(FunctionKey.f6, modifiers: .shift).disabled(model.activeSide != .remote || model.activeSelection.isEmpty || model.busy)
                 }
+                Divider()
+                Button("Find Files…") { model.showFindFiles = true }.keyboardShortcut("f", modifiers: [.command, .option]).disabled(!model.connected || model.busy)
+                Button("Properties…") { model.promptPermissions() }.keyboardShortcut("i").disabled(model.activeSide != .remote || model.activeSelection.isEmpty || model.busy)
             }
             CommandMenu("Go") {
                 Button("Back") { model.goBack(model.activeSide) }.keyboardShortcut("[").disabled(!model.canGoBack(model.activeSide) || model.busy)
@@ -64,6 +69,9 @@ struct SyncSCPApp: App {
                 Button("Home Folder") { model.goHome(model.activeSide) }.keyboardShortcut("h", modifiers: [.command, .shift]).disabled(model.busy)
                 Divider()
                 Button("Switch Panel") { model.activeSide = model.activeSide == .local ? .remote : .local }.keyboardShortcut(.tab, modifiers: .control)
+                Divider()
+                Toggle("Directory Tree", isOn: $model.showTree).keyboardShortcut("t", modifiers: [.command, .option])
+                Toggle("Compare Directories", isOn: $model.compareDirectories).keyboardShortcut("c", modifiers: [.command, .option]).disabled(!model.connected)
             }
             CommandMenu("Session") {
                 Button("Synchronize…") { model.previewSynchronization() }.keyboardShortcut("s", modifiers: [.command, .shift]).disabled(!model.connected)
@@ -102,7 +110,7 @@ struct SyncSCPApp: App {
                 Button("About syncSCP") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "syncSCP",
-                        .applicationVersion: "0.19.0 — Development Preview",
+                        .applicationVersion: "0.20.0 — Development Preview",
                         .credits: NSAttributedString(string: "An independent macOS file manager inspired by WinSCP's workflows; not affiliated with the WinSCP project.\nWinSCP is by Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }
@@ -114,7 +122,7 @@ struct SyncSCPApp: App {
 enum FunctionKey {
     private static func key(_ code: Int) -> KeyEquivalent { KeyEquivalent(Character(UnicodeScalar(UInt32(code))!)) }
     static let f2 = key(NSF2FunctionKey), f4 = key(NSF4FunctionKey), f5 = key(NSF5FunctionKey)
-    static let f7 = key(NSF7FunctionKey), f8 = key(NSF8FunctionKey)
+    static let f6 = key(NSF6FunctionKey), f7 = key(NSF7FunctionKey), f8 = key(NSF8FunctionKey)
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {

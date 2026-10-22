@@ -39,6 +39,10 @@ struct CommanderView: View {
         .sheet(isPresented: $model.showSync) { SynchronizationSheet(model: model) }
         .sheet(isPresented: $model.showImport) { ImportSheet(model: model) }
         .sheet(isPresented: $model.showPortForwarding) { PortForwardingSheet(model: model) }
+        .sheet(isPresented: $model.showFindFiles) { FindFilesSheet(model: model) }
+        .sheet(isPresented: Binding(get: { model.permissionsTarget != nil }, set: { if !$0 { model.permissionsTarget = nil } })) {
+            if let entries = model.permissionsTarget { PermissionsSheet(model: model, entries: entries) }
+        }
         .alert("Operation failed", isPresented: Binding(get: { model.error != nil && !model.showConnection && model.editor == nil }, set: { if !$0 { model.error = nil } })) {
             Button("OK") { model.error = nil }
         } message: { Text(model.error ?? "") }
@@ -65,6 +69,10 @@ struct CommanderView: View {
             }
             .menuStyle(.borderlessButton).fixedSize().padding(.horizontal, 8)
             ToolButton(title: "Refresh", icon: "arrow.clockwise") { model.refresh() }.disabled(model.busy).help("Refresh both panels · ⌘R")
+            Toggle(isOn: $model.compareDirectories) { Label("Compare", systemImage: "equal.square") }
+                .toggleStyle(.button).buttonStyle(.borderless).font(.system(size: 12)).disabled(!model.connected)
+                .help("Compare Directories: mark newer, older, different and missing files in both panels · ⌥⌘C")
+            ToolButton(title: "Find", icon: "doc.text.magnifyingglass") { model.showFindFiles = true }.disabled(!model.connected || model.busy).help("Find files on the server · ⌥⌘F")
             Spacer(minLength: 12)
             Toggle(isOn: $model.showHidden) { Image(systemName: model.showHidden ? "eye" : "eye.slash") }
                 .toggleStyle(.button).buttonStyle(.borderless).help("Show hidden files · ⌘⇧.")
@@ -137,7 +145,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.19.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.20.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)
@@ -380,12 +388,14 @@ struct FilePane: View {
             actionBar
             Divider()
             pathStrip
-            if !usable { disconnected } else {
-                fileTable
-                    .onDrop(of: local ? [DragPayload.remoteType] : [UTType.fileURL.identifier], isTargeted: $dropTargeted) { providers in
-                        local ? DragPayload.remotePaths(providers) { model.downloadDropped($0) } : DragPayload.fileURLs(providers) { model.uploadDropped($0) }
-                    }
-                    .overlay { if dropTargeted { RoundedRectangle(cornerRadius: 4).stroke(accent, lineWidth: 2).padding(2).allowsHitTesting(false) } }
+            if !usable { disconnected } else if model.showTree {
+                HSplitView {
+                    DirectoryTree(model: model, side: side, current: path, navigate: navigate)
+                        .id(local ? "local" : model.activeTabID?.uuidString ?? "remote").frame(minWidth: 150, idealWidth: 200, maxWidth: 360)
+                    droppableTable
+                }
+            } else {
+                droppableTable
             }
             Divider()
             footer
@@ -396,6 +406,14 @@ struct FilePane: View {
         .onChange(of: path) { pathInput = $0 }
         .onChange(of: selection.wrappedValue) { _ in model.activeSide = side }
         .simultaneousGesture(TapGesture().onEnded { model.activeSide = side })
+    }
+
+    private var droppableTable: some View {
+        fileTable
+            .onDrop(of: local ? [DragPayload.remoteType] : [UTType.fileURL.identifier], isTargeted: $dropTargeted) { providers in
+                local ? DragPayload.remotePaths(providers) { model.downloadDropped($0) } : DragPayload.fileURLs(providers) { model.uploadDropped($0) }
+            }
+            .overlay { if dropTargeted { RoundedRectangle(cornerRadius: 4).stroke(accent, lineWidth: 2).padding(2).allowsHitTesting(false) } }
     }
 
     private var navigationBar: some View {
@@ -461,7 +479,7 @@ struct FilePane: View {
                 }
             } else {
                 ToolButton(title: "Properties", icon: "info.circle") { act { model.promptPermissions() } }
-                    .disabled(!one || model.busy || model.currentSite?.transferProtocol.supportsPermissions == false)
+                    .disabled(!any || model.busy || model.currentSite?.transferProtocol.supportsPermissions == false)
                     .help(model.currentSite?.transferProtocol.supportsPermissions == false ? "This protocol has no POSIX permissions." : "Edit permissions")
             }
             Menu {
@@ -517,7 +535,10 @@ struct FilePane: View {
             HStack(spacing: 7) {
                 Image(systemName: entry.path == ParentRow.id ? "arrow.turn.left.up" : entry.isDirectory ? "folder.fill" : entry.isSymbolicLink ? "link" : "doc")
                     .foregroundStyle(entry.isDirectory ? accent.opacity(0.85) : .secondary).frame(width: 16)
+                let mark = model.compareMark(entry, side: side)
                 Text(entry.name).lineLimit(1).help(entry.path == ParentRow.id ? "Parent folder" : entry.name)
+                    .foregroundStyle(mark.map(CompareStyle.color) ?? Color.primary).fontWeight(mark == .newer || mark == .onlyHere ? .semibold : .regular)
+                if let mark { Image(systemName: CompareStyle.symbol(mark)).font(.system(size: 9)).foregroundStyle(CompareStyle.color(mark)).help(CompareStyle.help(mark)) }
             }
         }
     }
@@ -590,8 +611,10 @@ struct FilePane: View {
             Divider()
             Button("Rename…") { model.activeSide = side; selection.wrappedValue = ids; model.promptRename() }.disabled(ids.count != 1 || model.busy)
             if !local {
+                Button("Duplicate…") { model.activeSide = side; selection.wrappedValue = ids; model.duplicateRemote() }.disabled(ids.isEmpty || model.busy)
+                Button("Move To…") { model.activeSide = side; selection.wrappedValue = ids; model.moveRemote() }.disabled(ids.isEmpty || model.busy)
                 Button("Properties…") { model.activeSide = side; selection.wrappedValue = ids; model.promptPermissions() }
-                    .disabled(ids.count != 1 || model.busy || model.currentSite?.transferProtocol.supportsPermissions == false)
+                    .disabled(ids.isEmpty || model.busy || model.currentSite?.transferProtocol.supportsPermissions == false)
             }
             Button(local ? "Move to Trash…" : "Delete…") { model.activeSide = side; selection.wrappedValue = ids; model.deleteSelected() }
                 .disabled(ids.isEmpty || model.busy)
@@ -714,6 +737,19 @@ enum EditorApps {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.application]; panel.canChooseDirectories = false
         panel.directoryURL = URL(fileURLWithPath: "/Applications"); panel.message = "Choose an application to edit with"
         return panel.runModal() == .OK ? panel.url : nil
+    }
+}
+
+/// Compare Directories colors and symbols.
+enum CompareStyle {
+    static func color(_ mark: CommanderModel.CompareMark) -> Color {
+        switch mark { case .newer: return accent; case .onlyHere: return .green; case .older, .different: return .orange }
+    }
+    static func symbol(_ mark: CommanderModel.CompareMark) -> String {
+        switch mark { case .newer: return "arrow.up.circle.fill"; case .older: return "arrow.down.circle"; case .different: return "circle.lefthalf.filled"; case .onlyHere: return "plus.circle.fill" }
+    }
+    static func help(_ mark: CommanderModel.CompareMark) -> String {
+        switch mark { case .newer: return "Newer than in the other panel"; case .older: return "Older than in the other panel"; case .different: return "Differs from the other panel"; case .onlyHere: return "Not in the other panel" }
     }
 }
 

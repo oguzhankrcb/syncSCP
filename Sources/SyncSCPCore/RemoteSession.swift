@@ -98,6 +98,39 @@ public actor RemoteSession {
             try await client().download(remote: remote, local: local, replace: replace, token: token, progress: progress)
         }
     }
+    /// Copies a file or folder on the server (WinSCP's Duplicate). SCP copies with the server's
+    /// own `cp -pR`; other protocols pass each file through a temporary local file. Nothing
+    /// existing is replaced, symbolic links are not followed, and a folder cannot go into itself.
+    public func copy(_ source: String, to destination: String, token: CancellationToken = CancellationToken()) async throws {
+        guard destination != source, !destination.hasPrefix(source.hasSuffix("/") ? source : source + "/") else {
+            throw ClientError.invalid("A folder cannot be copied into itself.")
+        }
+        if let scp = backend as? SCPClient { try await scp.copy(source, to: destination); return }
+        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("syncscp-copy-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        try await copyTree(try stat(source), to: destination, through: scratch, token: token, depth: 0)
+    }
+
+    private func copyTree(_ entry: FileEntry, to destination: String, through scratch: URL, token: CancellationToken, depth: Int) async throws {
+        try token.check()
+        guard depth < 64 else { throw ClientError.unsupported("Copies are limited to 64 folder levels.") }
+        if entry.isDirectory {
+            guard try await !exists(destination) else { throw ClientError.conflict("\(destination) already exists.") }
+            try await mkdir(destination)
+            for child in try await list(entry.path) {
+                try await copyTree(child, to: RemotePath.join(destination, child.name), through: scratch, token: token, depth: depth + 1)
+            }
+        } else if entry.isRegularFile {
+            let temporary = scratch.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: temporary) }
+            try await download(remote: entry.path, local: temporary, token: token)
+            try await upload(local: temporary, remote: destination, replace: false, token: token)
+        } else {
+            throw ClientError.unsupported("Symbolic links and special files are not copied: \(entry.name)")
+        }
+    }
+
     /// Whether retried transfers continue partial files (SFTP) instead of starting over.
     public var resumesTransfers: Bool { backend is SFTPClient }
 }

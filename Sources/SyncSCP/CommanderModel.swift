@@ -169,7 +169,7 @@ final class CommanderModel: ObservableObject {
         catch { self.error = error.localizedDescription }
         if custom == nil { refreshSavedPasswords() }
         refreshLocal()
-        appendLog("syncSCP 0.19.0 · Community development preview")
+        appendLog("syncSCP 0.20.0 · Community development preview")
     }
 
     /// Carries preferences over from the bundle identifier used before the rename to syncSCP.
@@ -765,11 +765,154 @@ final class CommanderModel: ObservableObject {
         }
     }
 
+
+    // MARK: Compare Directories
+
+    enum CompareMark { case newer, older, different, onlyHere }
+    /// WinSCP's Compare Directories: files in the two folders shown are marked against each other by name.
+    @Published var compareDirectories = false
+    /// View ▸ Directory Tree beside both panels.
+    @Published var showTree = UserDefaults.standard.bool(forKey: "ShowDirectoryTree") { didSet { UserDefaults.standard.set(showTree, forKey: "ShowDirectoryTree") } }
+
+    func compareMark(_ entry: FileEntry, side: PaneSide) -> CompareMark? {
+        guard compareDirectories, connected, entry.path != ParentRow.id else { return nil }
+        let others = side == .local ? remoteEntries : localEntries
+        guard let other = others.first(where: { $0.name == entry.name }) else { return .onlyHere }
+        guard !entry.isDirectory, !other.isDirectory else { return entry.isDirectory == other.isDirectory ? nil : .different }
+        if let mine = entry.modified, let theirs = other.modified, abs(mine.timeIntervalSince(theirs)) >= 2 { return mine > theirs ? .newer : .older }
+        return entry.size == other.size ? nil : .different
+    }
+
+    // MARK: Permissions (WinSCP's Properties for several files)
+
+    @Published var permissionsTarget: [FileEntry]?
+
     func promptPermissions() {
-        guard !busy, activeSide == .remote, currentSite?.transferProtocol.supportsPermissions != false, let entry = activeSelection.first else { return }
-        guard let value = prompt(title: "Permissions for \(entry.name) (octal)", value: entry.permissionsKnown ? String(entry.permissions & 0o7777, radix: 8) : "") else { return }
-        guard let mode = UInt32(value, radix: 8), mode <= 0o7777 else { report(ClientError.invalid("Enter an octal mode such as 644 or 755.")); return }
-        perform { try await self.client.chmod(entry.path, mode: mode) }
+        guard !busy, activeSide == .remote, currentSite?.transferProtocol.supportsPermissions != false else { return }
+        let chosen = activeSelection.filter { $0.path != ParentRow.id }
+        guard !chosen.isEmpty else { return }
+        permissionsTarget = chosen
+    }
+
+    /// Sets `mode` on each entry; with `recursive`, also inside folders. Folders get execute bits
+    /// wherever read is allowed when `addExecuteToFolders` is on, so they stay openable.
+    func applyPermissions(_ entries: [FileEntry], mode: UInt32, recursive: Bool, addExecuteToFolders: Bool) {
+        permissionsTarget = nil
+        let folderMode: UInt32 = addExecuteToFolders ? mode | ((mode & 0o444) >> 2) : mode
+        perform {
+            var changed = 0
+            func apply(_ entry: FileEntry, depth: Int) async throws {
+                guard depth < 64 else { throw ClientError.unsupported("Permissions are applied at most 64 folder levels deep.") }
+                if entry.isSymbolicLink { return }
+                try await self.client.chmod(entry.path, mode: entry.isDirectory ? folderMode : mode); changed += 1
+                if recursive, entry.isDirectory { for child in try await self.client.list(entry.path) { try await apply(child, depth: depth + 1) } }
+            }
+            for entry in entries { try await apply(entry, depth: 0) }
+            self.appendLog("Set permissions \(String(mode, radix: 8)) on \(changed) item(s).")
+        }
+    }
+
+    // MARK: Remote copy and move
+
+    /// WinSCP's Duplicate (⇧F5): copies the remote selection on the server.
+    func duplicateRemote() {
+        guard !busy, connected, activeSide == .remote else { return }
+        let chosen = activeSelection.filter { $0.path != ParentRow.id }
+        guard !chosen.isEmpty else { return }
+        let single = chosen.count == 1 ? chosen[0] : nil
+        let suggestion = single.map { RemotePath.join(remotePath, Self.copyName($0.name)) } ?? remotePath
+        guard let target = prompt(title: single == nil ? "Duplicate \(chosen.count) items into folder" : "Duplicate \(single!.name) as", value: suggestion)?
+            .trimmingCharacters(in: .whitespaces), !target.isEmpty else { return }
+        let destination = target.hasPrefix("/") ? target : RemotePath.join(remotePath, target)
+        perform {
+            for entry in chosen {
+                let to = single == nil ? RemotePath.join(destination, entry.name) : destination
+                try await self.client.copy(entry.path, to: to)
+                self.appendLog("Duplicated \(entry.path) → \(to)")
+            }
+        }
+    }
+
+    /// WinSCP's Move To (⇧F6): renames the remote selection into another folder or path.
+    func moveRemote() {
+        guard !busy, connected, activeSide == .remote else { return }
+        let chosen = activeSelection.filter { $0.path != ParentRow.id }
+        guard !chosen.isEmpty else { return }
+        guard let target = prompt(title: chosen.count == 1 ? "Move \(chosen[0].name) to folder or new path" : "Move \(chosen.count) items to folder", value: remotePath)?
+            .trimmingCharacters(in: .whitespaces), !target.isEmpty else { return }
+        let destination = target.hasPrefix("/") ? target : RemotePath.join(remotePath, target)
+        perform {
+            // An existing folder receives the items; otherwise a single item is renamed to that path.
+            var intoFolder = false
+            if try await self.client.exists(destination) { intoFolder = try await self.client.stat(destination, followLinks: true).isDirectory }
+            guard intoFolder || chosen.count == 1 else { throw ClientError.invalid("\(destination) is not an existing folder.") }
+            for entry in chosen {
+                let to = intoFolder ? RemotePath.join(destination, entry.name) : destination
+                guard to != entry.path else { continue }
+                guard !to.hasPrefix(entry.path + "/") else { throw ClientError.invalid("A folder cannot be moved into itself.") }
+                try await self.client.rename(entry.path, to: to)
+                self.appendLog("Moved \(entry.path) → \(to)")
+            }
+        }
+    }
+
+    static func copyName(_ name: String) -> String {
+        let ext = (name as NSString).pathExtension, stem = (name as NSString).deletingPathExtension
+        return ext.isEmpty || stem.isEmpty ? name + " copy" : stem + " copy." + ext
+    }
+
+    // MARK: Find Files
+
+    @Published var showFindFiles = false
+    @Published private(set) var findResults: [FileEntry] = []
+    @Published private(set) var findRunning = false
+    @Published private(set) var findStatus = ""
+    private var findToken = CancellationToken()
+
+    /// Searches below `folder` for names matching any of `masks` (`*.log; *.conf`, case-insensitive).
+    func findFiles(masks: String, in folder: String) {
+        let patterns = masks.split(whereSeparator: { $0 == ";" || $0 == "," }).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard connected, !busy, !patterns.isEmpty else { return }
+        findToken = CancellationToken(); let token = findToken
+        findResults = []; findRunning = true; operationBusy = true; findStatus = "Searching…"
+        Task {
+            var visited = 0
+            do { try await findWalk(folder, patterns: patterns, token: token, depth: 0, visited: &visited); findStatus = "\(findResults.count) found in \(visited) folder(s)" }
+            catch ClientError.cancelled { findStatus = "Stopped: \(findResults.count) found" }
+            catch { findStatus = error.localizedDescription }
+            findRunning = false; operationBusy = false
+        }
+    }
+
+    private func findWalk(_ path: String, patterns: [String], token: CancellationToken, depth: Int, visited: inout Int) async throws {
+        try token.check()
+        guard depth < 32, visited < 20_000 else { return }
+        visited += 1; findStatus = "Searching \(path)"
+        let entries: [FileEntry]
+        do { entries = try await client.list(path) } catch ClientError.remote { return } // unreadable folders are skipped
+        for entry in entries {
+            if patterns.contains(where: { fnmatch($0, entry.name, FNM_CASEFOLD) == 0 }) { findResults.append(entry) }
+            if entry.isDirectory { try await findWalk(entry.path, patterns: patterns, token: token, depth: depth + 1, visited: &visited) }
+        }
+    }
+
+    func stopFindingFiles() { findToken.cancel() }
+
+    /// Opens a result's folder and selects it.
+    func reveal(_ entry: FileEntry) {
+        activeSide = .remote; showFindFiles = false
+        navigateRemote(RemotePath.parent(entry.path)) { [weak self] in self?.remoteSelection = [entry.path] }
+    }
+
+    // MARK: Directory tree
+
+    /// Subfolders for the directory tree, read without making the panes busy.
+    func subfolders(of path: String, side: PaneSide) async -> [FileEntry] {
+        if side == .local {
+            return ((try? LocalFiles.list(path)) ?? []).filter { $0.isDirectory && (showHidden || !$0.isHidden) }
+        }
+        guard connected else { return [] }
+        return ((try? await client.list(path)) ?? []).filter { $0.isDirectory && (showHidden || !$0.isHidden) }
     }
 
     /// WinSCP's New ▸ File (Shift+F4): creates an empty file without replacing an existing one,

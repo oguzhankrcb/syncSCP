@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.19.0-blue" alt="Sürüm 0.19.0"/>
+  <img src="https://img.shields.io/badge/version-0.20.0-blue" alt="Sürüm 0.20.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygulamasıdır (SwiftUI ve AppKit): yerel ve uzak panel, aktarım kuyruğu, site başına Advanced ayarlar ve yerleşik SSH terminali. macOS ile gelen OpenSSH ve libcurl'ü kullanır, kendi sıkı host key deposunu tutar ve parolaları hiçbir zaman diske yazmaz. Hesap, abonelik veya telemetri yok.
 
-> **Durum: 0.19.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
+> **Durum: 0.20.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
 
 ## ⚡ WinSCP'den geçenler için
 
@@ -79,6 +79,11 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 - Commander tuşları (F2 yeniden adlandır, F4 düzenle, F5 diğer panele kopyala, F7 klasör, F8 sil) ve Go menüsü (⌘[ ⌘] ⌘↑ ⌘⇧H ⌃⇥)
 - İki panelde de New ▸ Folder… ve New ▸ File…; site başına son klasör hatırlanır
 - Çoklu seçim, sıralama, gizli dosyalar ve filtre
+- Her panelin yanında **klasör ağacı** (⌥⌘T), bulunduğunuz klasörü takip eder
+- **Compare Directories** (⌥⌘C): yeni, eski, farklı ve tek tarafta olan dosyalar iki panelde işaretlenir
+- Sunucuda **dosya arama** (⌥⌘F): alt klasörlerde, büyük/küçük harf duyarsız `*.log; nginx*.conf` gibi maskeler; sonuç kendi klasöründe açılır
+- Sunucuda **çoğaltma** (⇧F5) ve **taşıma** (⇧F6); hiçbir şeyin üzerine yazılmaz, SCP'de sunucunun kendi `cp` komutu kullanılır
+- Birden fazla öğe için **izinler**: rwx kutuları veya sekizlik değer, isteğe bağlı alt klasörlerle, klasörler açılabilir kalır
 
 ### 💻 SSH terminali
 

@@ -298,4 +298,23 @@ final class AdvancedSettingsIntegrationTests: XCTestCase {
         XCTAssertNotEqual(duplicate.terminationStatus, 0)
         XCTAssertTrue(tunnel.isRunning)
     }
+
+    func testServerSideCopyOverSFTPAndSCPNeverReplaces() async throws {
+        for (kind, port) in [(TransferProtocol.sftp, sftpPort), (.scp, scpPort)] {
+            let base = remote.appendingPathComponent("copy-\(kind.shortTitle)")
+            try FileManager.default.createDirectory(at: base.appendingPathComponent("folder/inner"), withIntermediateDirectories: true)
+            try Data("one".utf8).write(to: base.appendingPathComponent("folder/a.txt"))
+            try Data("two".utf8).write(to: base.appendingPathComponent("folder/inner/b.txt"))
+            try await connect(site(kind, port: port))
+            let folder = try await client.realpath(base.path)
+            try await client.copy(folder + "/folder/a.txt", to: folder + "/a copy.txt")
+            try await client.copy(folder + "/folder", to: folder + "/folder copy")
+            XCTAssertEqual(try String(contentsOf: base.appendingPathComponent("a copy.txt"), encoding: .utf8), "one", kind.shortTitle)
+            XCTAssertEqual(try String(contentsOf: base.appendingPathComponent("folder copy/inner/b.txt"), encoding: .utf8), "two", kind.shortTitle)
+            XCTAssertEqual(try String(contentsOf: base.appendingPathComponent("folder/a.txt"), encoding: .utf8), "one", "the source stays")
+            do { try await client.copy(folder + "/folder/a.txt", to: folder + "/a copy.txt"); XCTFail("Replaced an existing file over \(kind.shortTitle)") } catch ClientError.conflict {}
+            do { try await client.copy(folder + "/folder", to: folder + "/folder/inside"); XCTFail("Copied a folder into itself") } catch ClientError.invalid {}
+            await client.disconnect()
+        }
+    }
 }

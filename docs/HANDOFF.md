@@ -1,6 +1,6 @@
 # syncSCP — oturum devir notu
 
-Son güncelleme: 22 Ekim 2026 (0.19.0 / eşitleme). Bu belge, geliştirmeyi yeni bir oturumda mevcut dosyalardan sürdürmek için hazırlanmıştır.
+Son güncelleme: 22 Ekim 2026 (0.20.0 / gezinme araçları). Bu belge, geliştirmeyi yeni bir oturumda mevcut dosyalardan sürdürmek için hazırlanmıştır.
 
 ## Amaç ve mevcut yaklaşım
 
@@ -10,11 +10,18 @@ Kullanıcının hedefi WinSCP'nin macOS üzerinde mümkün olduğunca bire bir �
 /Users/oguzhankaracabay/Desktop/projects/WinSCP-Mac-Port
 ```
 
-Mevcut uygulama **0.19.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
+Mevcut uygulama **0.20.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
 
 Swift Package Manager kullanılıyor; hedef macOS 13+, paket araç sürümü 5.9. Son doğrulamalar Apple Silicon üzerinde Swift 6.2 ile yapıldı. Uygulama macOS'un OpenSSH, libcurl ve CryptoKit bileşenlerini kullanıyor; tek indirilen Swift paketi terminal için SwiftTerm (MIT, `exact: 1.20.0`; swift-argument-parser onun aracı için çözülüyor ama uygulamaya girmiyor). AWS SDK, Electron, Wine veya Python çalışma zamanı bağımlılığı yok. Python ve Docker yalnızca bağımsız test sunucuları için kullanılıyor.
 
 **Git durumu:** `origin` = kullanıcının **private** GitHub reposu `https://github.com/oguzhankrcb/syncSCP` (21 Ekim 2026'da `WinSCP-Mac-Port` olarak oluşturuldu, 0.13.0'da yeniden adlandırıldı; GitHub eski adresi yönlendiriyor). `main` dalında ilk commit (`c7b6c76`, 0.4.0 içeri aktarımı) push edildi. 0.5.0 S3 ve 0.6.0 ayar çalışmaları ayrı commit'lerdir; push durumunu `git status -sb` ile kontrol et. Proje kökündeki `syncSCP — UI mockup.html` kullanıcının dışa aktardığı mockup kopyasıdır; untracked bırakıldı, commit'lenmedi. Repo private kalmalı; public yapmak, release veya PR açmak ayrıca yetki ister. `dist/`, `.build/` ve `upstream/winscp/` git dışında tutuluyor. Yine de `git clean`, reset gibi dosya kaybettirecek işlemler yapma.
+
+## 0.20.0: Klasör ağacı, karşılaştırma, arama, sunucuda kopyala/taşı, toplu izin
+
+- `BrowsingTools.swift`: `PermissionsSheet` (rwx + sekizlik, özyinelemeli, okunabilir klasörlere x ekleme), `FindFilesSheet`, `DirectoryTree` (tembel yüklenen ağaç, `TreeStore`, mevcut klasöre kadar açılıyor).
+- Model: `compareMark` (ada göre, 2 sn zaman toleransı), `applyPermissions`, `duplicateRemote` (⇧F5), `moveRemote` (⇧F6), `findFiles` (fnmatch, FNM_CASEFOLD, en fazla 32 seviye / 20.000 klasör, iptal edilebilir), `reveal`, `subfolders(of:side:)`.
+- Core: `RemoteSession.copy(_:to:)` — SCP'de `SCPClient.copy` (`cp -pR --`, hedef varsa reddediyor), diğerlerinde geçici yerel dosya üzerinden; kendi içine kopyalama reddi.
+- Menü: Files ▸ Find Files (⌥⌘F), Properties (⌘I); Commander Keys'e ⇧F5/⇧F6; Go ▸ Directory Tree (⌥⌘T), Compare Directories (⌥⌘C). Araç çubuğuna Compare ve Find.
 
 ## 0.19.0: Çift yönlü eşitleme ve Keep Remote Directory up to Date
 
@@ -143,11 +150,11 @@ Aşağıdaki yolların tamamı proje dizinine göredir:
 
 ## Son doğrulama ve mevcut çıktılar
 
-0.19.0'ın son kaynakları üzerinde hem debug hem release testleri tamamlandı:
+0.20.0'ın son kaynakları üzerinde hem debug hem release testleri tamamlandı:
 
 ```text
-./scripts/test-ssh.sh --all             → 127 XCTest, 0 failure, 0 skip   (0.19.0)
-./scripts/test-ssh.sh --all -c release  → 127 XCTest, 0 failure, 0 skip   (0.19.0)
+./scripts/test-ssh.sh --all             → 128 XCTest, 0 failure, 0 skip   (0.20.0)
+./scripts/test-ssh.sh --all -c release  → 128 XCTest, 0 failure, 0 skip   (0.20.0)
 ```
 
 Son çalıştırmalarda compiler warning yok. Testler gerçek OpenSSH/SFTP, SFTP subsystem'i kapalı ayrı SCP sunucusu, pyftpdlib 2.2.0 FTP/FTPS, WsgiDAV 4.3.5 / Cheroot 11.1.2 HTTP/HTTPS ve Docker'da iki MinIO (HTTP + HTTPS) sunucusunu kullanıyor. MinIO imajı digest ile sabitlenmiş `bitnamilegacy/minio:2025.7.23`; resmî topluluk MinIO imajları artık yayımlanmıyor. Geçici anahtarlar, CA ve dosyalar üretildi; kullanıcının üretim sunucusu/kimlik bilgileri kullanılmadı.
@@ -158,11 +165,11 @@ Mevcut çıktılar:
 
 ```text
 dist/syncSCP.app
-dist/SyncSCP-0.19.0-universal.zip
-dist/SyncSCP-0.19.0-source.zip   (untracked mockup HTML'i de içeriyor; script untracked dosyaları da paketler)
+dist/SyncSCP-0.20.0-universal.zip
+dist/SyncSCP-0.20.0-source.zip   (untracked mockup HTML'i de içeriyor; script untracked dosyaları da paketler)
 ```
 
-Universal sürüm arm64 ve x86_64 içeriyor, ad-hoc imzalı ve strict codesign kontrolünden geçti. **Fiziksel Intel testi, eski macOS testi, Developer ID imzası ve notarization yapılmadı.** GitHub Actions workflow'u repo push edildiği için GitHub'da tetiklenebilir; sonucunu doğrulamadan başarılı olduğu iddia edilmemeli. Hosted macOS runner'larda Docker olmadığından CI `SYNCSCP_SKIP_S3=1` kullanır; S3 testleri orada skip olur. Önceki 0.1–0.4 ZIP'leri de duruyor; güncel paket 0.19.0 (eski ZIP'ler `WinSCPMac-*` adını taşır).
+Universal sürüm arm64 ve x86_64 içeriyor, ad-hoc imzalı ve strict codesign kontrolünden geçti. **Fiziksel Intel testi, eski macOS testi, Developer ID imzası ve notarization yapılmadı.** GitHub Actions workflow'u repo push edildiği için GitHub'da tetiklenebilir; sonucunu doğrulamadan başarılı olduğu iddia edilmemeli. Hosted macOS runner'larda Docker olmadığından CI `SYNCSCP_SKIP_S3=1` kullanır; S3 testleri orada skip olur. Önceki 0.1–0.4 ZIP'leri de duruyor; güncel paket 0.20.0 (eski ZIP'ler `WinSCPMac-*` adını taşır).
 
 Son kayıtlar `.build/terminal-debug-tests.log`, `.build/terminal-release-tests.log`, `.build/terminal-package.log` içinde.
 

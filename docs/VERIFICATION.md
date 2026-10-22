@@ -1,5 +1,14 @@
 # Verification record
 
+## 0.20.0 — Directory tree, Compare Directories, Find Files, remote copy/move, bulk permissions
+
+Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **128 XCTest cases, zero failures, zero skips**.
+
+- New integration test against both SSH daemons: duplicating a file and a folder tree on the server over SFTP (through temporary files) and SCP (`cp -pR`), refusing an existing destination and a folder copied into itself.
+- A scripted run of the real `CommanderModel` against the SFTP test daemon passed 12 checks: Compare Directories marks (newer/older/one-sided, nothing for identical, none when off); Find Files with `*.log; *.MD` matched case-insensitively in subfolders and a result opened its folder with the file selected; recursive permissions gave folders 750 and files 640; a move into a folder; the tree listed only subfolders.
+- The window was rendered with the tree and compare marks against the test daemon and looked right.
+- **Not tried by me:** the Duplicate / Move To dialogs and the Permissions sheet by hand; the tree does not show folders reached through a symbolic link (such as /var).
+
 ## 0.19.0 — Two-way synchronization and Keep Remote Directory up to Date
 
 Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **127 XCTest cases, zero failures, zero skips**.

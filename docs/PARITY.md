@@ -5,7 +5,7 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | Upstream capability | Preview status | Remaining work |
 | --- | --- | --- |
 | Session tabs | Implemented | Several connections at once, each with its own remote/local folders and history; queue jobs stay on their connection; Duplicate Session; workspaces (saved tab sets) remain |
-| Commander dual panes | Implemented | WinSCP layout with per-pane navigation/action bars, back/forward history, Type/Changed/Rights columns, selection totals, drag and drop between panes and from Finder, F2/F4/F5/F7/F8 and Go-menu shortcuts, the ".." row and a clickable path strip; dragging remote items to Finder, F6 move, directory tree and selection masks remain |
+| Commander dual panes | Implemented | WinSCP layout with per-pane navigation/action bars, back/forward history, Type/Changed/Rights columns, selection totals, drag and drop between panes and from Finder, F2/F4/F5/F7/F8 and Go-menu shortcuts, the ".." row and a clickable path strip; dragging remote items to Finder, directory tree, Compare Directories and Find Files; selection masks remain |
 | Explorer interface | Missing | Single-panel mode |
 | Open Terminal / Open in PuTTY | Implemented | Interactive `ssh -t` logins in SwiftTerm windows (tabs, split panes, find, snippets) or Terminal.app, from a session or straight from Login, starting in the remote folder through the site's shell; WinSCP's non-interactive command console and custom commands remain |
 | Port forwarding (PuTTY Tunnels) | Implemented | Saved local forwards per site, loopback only, ExitOnForwardFailure; remote and dynamic (SOCKS) forwards remain |
@@ -18,8 +18,8 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | SCP protocol | Implemented baseline | Real legacy SCP and shell/stat file management; Unix server requirements, line-break limits, Linux interoperability, and remote rename races documented in [SCP.md](SCP.md) |
 | WebDAV / WebDAVS | Implemented baseline | Verified HTTPS, PROPFIND/XML, transfers, operations and ETag replacement; destination character limits, locks, authentication/vendor interoperability and timestamps documented in [WEBDAV.md](WEBDAV.md) |
 | S3 | Implemented baseline | SigV4 signed payloads, paginated listings, multipart upload, conditional writes, server-side-copy rename and checksums verified against MinIO; AWS and other providers, region discovery, versioning, folder rename and bucket management documented in [S3.md](S3.md) |
-| File operations | Partial | Remote copy, move across filesystems, custom commands, timestamps |
-| Permissions | Partial (n/a for WebDAV/S3) | Single-file numeric POSIX mode, recursive editor and ownership remaining |
+| File operations | Implemented | Remote duplicate (server `cp` over SCP, temporary copy otherwise) and move/rename into folders; custom commands and timestamps remain |
+| Permissions | Implemented (n/a for WebDAV/S3) | Multi-item rwx/octal editor, recursive with execute kept on readable folders; ownership remains |
 | Text editor | Partial | Built-in UTF-8 editor (4 MB) plus external editors with save watching, conflict-checked upload and Edit With/Open With; other encodings and large files in the built-in editor remaining |
 | Synchronization | Implemented | Upload, download and two-way with newer-only, size-only and opt-in mirror deletion, every item rechecked before it is applied; Keep Remote Directory up to Date via FSEvents; checksum comparison and file masks remain |
 | Sites / workspaces | Partial | JSON sites in WinSCP-style folders, with notes, colors, search, Save As and rename; import of WinSCP.ini, `reg export` and Wine/Whisky/CrossOver configurations ([IMPORT.md](IMPORT.md)); workspaces remaining |

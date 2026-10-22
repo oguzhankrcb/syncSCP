@@ -117,6 +117,13 @@ public actor SCPClient: RemoteFileClient {
         guard try !stat(path).isSymbolicLink else { throw ClientError.unsupported("SCP does not change symbolic-link targets' permissions.") }
         _ = try ssh().run("chmod \"$1\" \"$2\"", arguments: [String(mode, radix: 8), path])
     }
+    /// A server-side copy (cp -pR); an existing destination is never replaced.
+    public func copy(_ source: String, to destination: String) throws {
+        let source = try absolute(source), destination = try absolute(destination)
+        guard try !exists(destination) else { throw ClientError.conflict("The remote destination already exists.") }
+        _ = try ssh().run("cp -pR -- \"$1\" \"$2\"", arguments: [source, destination])
+    }
+
     public func rename(_ source: String, to destination: String, replace: Bool = false) throws {
         let source = try absolute(source), destination = try absolute(destination)
         if replace {
