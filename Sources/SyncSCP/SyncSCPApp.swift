@@ -30,8 +30,10 @@ struct SyncSCPApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Session…") { model.showConnection = true }.keyboardShortcut("n")
-                    .disabled(model.busy || model.editor != nil || model.showSync)
-                Button("Disconnect") { model.disconnect() }.disabled(!model.connected)
+                    .disabled(!model.canConnect || model.editor != nil || model.showSync)
+                Button("Duplicate Session…") { model.duplicateSession() }.keyboardShortcut("d", modifiers: [.command, .option])
+                    .disabled(!model.connected || !model.canConnect)
+                Button("Disconnect") { model.disconnect() }.disabled(!model.connected || model.operationBusy)
                 Divider()
                 Button("Import from WinSCP…") { model.showImport = true }.disabled(model.busy)
             }
@@ -72,12 +74,15 @@ struct SyncSCPApp: App {
                 Divider()
                 Toggle("Show Hidden Files", isOn: $model.showHidden).keyboardShortcut(".", modifiers: [.command, .shift])
                 Button("Session Log") { model.bottomTab = .log; model.showBottom = true }
+                Divider()
+                Button("Show Next Session Tab") { model.activateNeighborTab(1) }.keyboardShortcut("]", modifiers: [.command, .shift]).disabled(!model.canSwitchTabs)
+                Button("Show Previous Session Tab") { model.activateNeighborTab(-1) }.keyboardShortcut("[", modifiers: [.command, .shift]).disabled(!model.canSwitchTabs)
             }
             CommandGroup(replacing: .appInfo) {
                 Button("About syncSCP") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "syncSCP",
-                        .applicationVersion: "0.14.0 — Development Preview",
+                        .applicationVersion: "0.15.0 — Development Preview",
                         .credits: NSAttributedString(string: "An independent macOS file manager inspired by WinSCP's workflows; not affiliated with the WinSCP project.\nWinSCP is by Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }

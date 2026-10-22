@@ -1,5 +1,12 @@
 # Verification record
 
+## 0.15.0 — Session tabs
+
+Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **119 XCTest cases, zero failures, zero skips** (the core is unchanged).
+
+- A scripted run of the real `CommanderModel` against the SFTP and SCP-only test daemons (with its own site store, never the user's) passed 16 checks: a second site opens a second tab while the first stays connected; each tab keeps its remote and local folders; a 48 MB upload started on tab B completes on B's connection while tab A is shown and browsed; nothing lands in A's folder; next-tab wraps; closing a tab shows its neighbor; closing the last leaves no session.
+- **Not tried by me:** clicking the tab strip in the running app, Duplicate Session, and external edits across tabs.
+
 ## 0.14.0 — SSH terminal
 
 Verified locally on 2026-10-21. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **119 XCTest cases, zero failures, zero skips**.

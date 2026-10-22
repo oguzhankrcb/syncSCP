@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.14.0-blue" alt="Sürüm 0.14.0"/>
+  <img src="https://img.shields.io/badge/version-0.15.0-blue" alt="Sürüm 0.15.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygulamasıdır (SwiftUI ve AppKit): yerel ve uzak panel, aktarım kuyruğu, site başına Advanced ayarlar ve yerleşik SSH terminali. macOS ile gelen OpenSSH ve libcurl'ü kullanır, kendi sıkı host key deposunu tutar ve parolaları hiçbir zaman diske yazmaz. Hesap, abonelik veya telemetri yok.
 
-> **Durum: 0.14.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
+> **Durum: 0.15.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
 
 ## ⚡ WinSCP'den geçenler için
 
@@ -54,6 +54,7 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 | ---------------------------------------- | ----------------------------------------------- | ------------------- |
 | Platform                                 | macOS 13+, yerel (Apple Silicon ve Intel)       | Windows             |
 | Çift panelli Commander                   | Var                                             | Var                 |
+| Oturum sekmeleri (birden fazla sunucu)   | Var                                             | Var                 |
 | SFTP, SCP, FTP/FTPS, WebDAV, S3          | Var                                             | Var                 |
 | SSH terminali                            | Yerleşik pencere veya Terminal.app              | PuTTY ile           |
 | `sudo su -` üzerinden SCP                | Var, tek kalıcı shell                           | Var                 |
@@ -69,7 +70,8 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 
 ### 📁 Commander
 
-- WinSCP düzeni, macOS görünümüyle: ana araç çubuğu, site renginde oturum sekmesi, panel başına gezinme ve işlem çubukları
+- WinSCP düzeni, macOS görünümüyle: ana araç çubuğu, panel başına gezinme ve işlem çubukları
+- **Oturum sekmeleri**: aynı anda birden fazla sunucuya bağlanın; her sekme site renginde ve kendi uzak/yerel klasörüyle. Bir sekmedeki aktarım, siz başka sekmede çalışırken kendi bağlantısında sürer (geçiş ⌘⇧] / ⌘⇧[, Duplicate Session ⌘⌥D)
 - Üst klasör menülü yol alanı, geri/ileri geçmişi, tıklanabilir yol şeridi ve ".." satırı
 - Yerelde Name/Size/Type/Changed, uzakta Name/Size/Changed/Rights sütunları ve WinSCP'nin "0 B of 34.9 MB in 0 of 40" özeti
 - Paneller arasında ve Finder'dan sürükle-bırak; aynı kuyruk ve üzerine yazma soruları

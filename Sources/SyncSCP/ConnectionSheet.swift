@@ -57,7 +57,7 @@ struct ConnectionSheet: View {
                     do { try site.validate() } catch { model.report(error); return }
                     model.connect(site: site, password: password, sessionToken: s3 ? sessionToken : "")
                     password = ""; sessionToken = ""
-                }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).disabled(model.busy)
+                }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).disabled(!model.canConnect)
             }
             .padding(.horizontal, 16).frame(height: 54)
         }

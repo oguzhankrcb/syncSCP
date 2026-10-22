@@ -45,7 +45,7 @@ struct CommanderView: View {
 
     private var mainToolbar: some View {
         HStack(spacing: 4) {
-            ToolButton(title: "New Session", icon: "plus") { model.showConnection = true }.disabled(model.busy)
+            ToolButton(title: "New Session", icon: "plus") { model.showConnection = true }.disabled(!model.canConnect)
             ToolDivider()
             ToolButton(title: "Synchronize", icon: "arrow.triangle.2.circlepath") { model.previewSynchronization() }
                 .disabled(!model.connected || model.busy).help("Synchronize · ⌘⇧S")
@@ -81,35 +81,29 @@ struct CommanderView: View {
         .padding(.horizontal, 12).frame(height: 44).background(barShade)
     }
 
+    /// One tab per connection, like WinSCP's session tabs; the shown tab uses the live site.
     private var sessionTabs: some View {
         HStack(alignment: .bottom, spacing: 2) {
-            if let site = model.currentSite, model.connected {
-                HStack(spacing: 8) {
-                    if let color = SiteColor.color(site.settings.color) {
-                        RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 4, height: 14).help("Site color")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .bottom, spacing: 2) {
+                    ForEach(model.tabs) { tab in
+                        let active = tab.id == model.activeTabID
+                        SessionTabView(site: active ? (model.currentSite ?? tab.site) : tab.site, active: active,
+                                       transfers: model.jobs.filter { $0.session == tab.id && ($0.state == .running || $0.state == .waiting) }.count,
+                                       select: { model.activateTab(tab.id) }, close: { model.closeTab(tab.id) },
+                                       canSelect: active || model.canSwitchTabs, canClose: !model.connecting && !(active && model.operationBusy))
                     }
-                    Image(systemName: site.transferProtocol.isEncrypted ? "lock.fill" : "exclamationmark.triangle.fill")
-                        .font(.system(size: 10)).foregroundStyle(site.transferProtocol.isEncrypted ? Color.green : Color.orange)
-                    Text(site.displayName).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                    Text(site.transferProtocol.shortTitle).font(.system(size: 9.5, weight: .bold)).tracking(0.4)
-                        .padding(.horizontal, 5).padding(.vertical, 2)
-                        .foregroundStyle(accent).background(accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
-                    Button { model.disconnect() } label: { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)) }
-                        .buttonStyle(.borderless).foregroundStyle(.secondary).help("Disconnect")
-                        .disabled(model.connecting || model.operationBusy).accessibilityLabel("Disconnect")
+                    if model.tabs.isEmpty || model.connecting {
+                        HStack(spacing: 7) {
+                            if model.connecting { ProgressView().controlSize(.small); Text("Connecting…") } else { Text("No session") }
+                        }
+                        .font(.system(size: 12)).foregroundStyle(.secondary).padding(.horizontal, 13).frame(height: 28)
+                    }
                 }
-                .padding(.horizontal, 13).frame(height: 29)
-                .background(chrome, in: UnevenRoundedRectangle(topLeadingRadius: 8, topTrailingRadius: 8))
-                .overlay(UnevenRoundedRectangle(topLeadingRadius: 8, topTrailingRadius: 8).stroke(Color.primary.opacity(0.12)))
-                .help(site.settings.note.isEmpty ? "\(site.username)@\(site.host):\(site.port)" : site.settings.note)
-            } else {
-                HStack(spacing: 7) {
-                    if model.connecting { ProgressView().controlSize(.small); Text("Connecting…") } else { Text("No session") }
-                }
-                .font(.system(size: 12)).foregroundStyle(.secondary).padding(.horizontal, 13).frame(height: 28)
             }
+            .fixedSize(horizontal: false, vertical: true)
             Button { model.showConnection = true } label: { Image(systemName: "plus").font(.system(size: 11, weight: .semibold)) }
-                .buttonStyle(.borderless).frame(width: 28, height: 28).help("New Session · ⌘N").disabled(model.busy)
+                .buttonStyle(.borderless).frame(width: 28, height: 28).help("New Session · ⌘N").disabled(!model.canConnect)
                 .accessibilityLabel("New session")
             Spacer()
             if model.operationBusy { ProgressView().controlSize(.small).padding(.bottom, 6) }
@@ -134,7 +128,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.14.0").foregroundStyle(.tertiary)
+            Text("Development preview · 0.15.0").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)
@@ -152,6 +146,46 @@ struct CommanderView: View {
     private func duration(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds))
         return String(format: "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60)
+    }
+}
+
+private struct SessionTabView: View {
+    let site: Site
+    let active: Bool
+    let transfers: Int
+    let select: () -> Void
+    let close: () -> Void
+    let canSelect: Bool
+    let canClose: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let color = SiteColor.color(site.settings.color) {
+                RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 4, height: 14).help("Site color")
+            }
+            Image(systemName: site.transferProtocol.isEncrypted ? "lock.fill" : "exclamationmark.triangle.fill")
+                .font(.system(size: 10)).foregroundStyle(site.transferProtocol.isEncrypted ? Color.green : Color.orange)
+            Text(site.displayName).font(.system(size: 12, weight: active ? .semibold : .regular)).lineLimit(1)
+                .foregroundStyle(active ? Color.primary : Color.secondary)
+            Text(site.transferProtocol.shortTitle).font(.system(size: 9.5, weight: .bold)).tracking(0.4)
+                .padding(.horizontal, 5).padding(.vertical, 2)
+                .foregroundStyle(accent).background(accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+            if transfers > 0 {
+                Label("\(transfers)", systemImage: "arrow.up.arrow.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(accent)
+                    .help("\(transfers) transfer(s) running or waiting on this connection")
+            }
+            Button(action: close) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)) }
+                .buttonStyle(.borderless).foregroundStyle(.secondary).help("Disconnect")
+                .disabled(!canClose).accessibilityLabel("Disconnect \(site.displayName)")
+        }
+        .padding(.horizontal, 13).frame(height: active ? 29 : 27)
+        .background(active ? chrome : Color.clear, in: UnevenRoundedRectangle(topLeadingRadius: 8, topTrailingRadius: 8))
+        .overlay(UnevenRoundedRectangle(topLeadingRadius: 8, topTrailingRadius: 8).stroke(Color.primary.opacity(active ? 0.12 : 0.07)))
+        .contentShape(Rectangle())
+        .onTapGesture { if canSelect { select() } }
+        .help(site.settings.note.isEmpty ? "\(site.username)@\(site.host):\(site.port)" : site.settings.note)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(active ? [.isSelected, .isButton] : .isButton)
     }
 }
 
@@ -236,6 +270,9 @@ struct QueuePanel: View {
                             Image(systemName: job.direction == .upload ? "arrow.up" : "arrow.down")
                                 .foregroundStyle(job.state == .running ? accent : .secondary).frame(width: 16)
                             Text(job.entry.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                            if Set(model.jobs.map(\.session)).count > 1 || model.tabs.count > 1 {
+                                Text(job.siteName).lineLimit(1).foregroundStyle(.secondary).frame(width: 140, alignment: .leading).help("Connection: \(job.siteName)")
+                            }
                             Text(job.destination).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading).help(job.destination)
                             ProgressView(value: job.state == .done ? 1 : job.fraction).frame(width: 180)

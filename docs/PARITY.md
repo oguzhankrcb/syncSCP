@@ -4,7 +4,8 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 
 | Upstream capability | Preview status | Remaining work |
 | --- | --- | --- |
-| Commander dual panes | Implemented | WinSCP layout with per-pane navigation/action bars, back/forward history, Type/Changed/Rights columns, selection totals, drag and drop between panes and from Finder, F2/F4/F5/F7/F8 and Go-menu shortcuts, the ".." row and a clickable path strip; dragging remote items to Finder, F6 move, directory tree, selection masks and multiple session tabs remain |
+| Session tabs | Implemented | Several connections at once, each with its own remote/local folders and history; queue jobs stay on their connection; Duplicate Session; workspaces (saved tab sets) remain |
+| Commander dual panes | Implemented | WinSCP layout with per-pane navigation/action bars, back/forward history, Type/Changed/Rights columns, selection totals, drag and drop between panes and from Finder, F2/F4/F5/F7/F8 and Go-menu shortcuts, the ".." row and a clickable path strip; dragging remote items to Finder, F6 move, directory tree and selection masks remain |
 | Explorer interface | Missing | Single-panel mode |
 | Open Terminal / Open in PuTTY | Implemented | Interactive `ssh -t` login in a SwiftTerm window or Terminal.app, starting in the remote folder through the site's shell; WinSCP's non-interactive command console, custom commands and saved terminal profiles remain |
 | SFTP | Implemented, v3 | More server interoperability, extensions, pipelining, non-UTF-8 policy |
@@ -20,7 +21,7 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | Permissions | Partial (n/a for WebDAV/S3) | Single-file numeric POSIX mode, recursive editor and ownership remaining |
 | Text editor | Partial | Built-in UTF-8 editor (4 MB) plus external editors with save watching, conflict-checked upload and Edit With/Open With; other encodings and large files in the built-in editor remaining |
 | Synchronization | Partial | One-way reviewed upload with size/mtime revalidation; two-way, checksums, masks, watches remaining |
-| Sites / workspaces | Partial | JSON sites in WinSCP-style folders, with notes, colors, search, Save As and rename; import of WinSCP.ini, `reg export` and Wine/Whisky/CrossOver configurations ([IMPORT.md](IMPORT.md)); tabs and workspaces remaining |
+| Sites / workspaces | Partial | JSON sites in WinSCP-style folders, with notes, colors, search, Save As and rename; import of WinSCP.ini, `reg export` and Wine/Whisky/CrossOver configurations ([IMPORT.md](IMPORT.md)); workspaces remaining |
 | Advanced Site Settings | Implemented dialog, partial effect | All upstream pages and settings round-trip; shell/SFTP server, timeouts, keepalives, IP version, SOCKS/HTTP/local proxy, SSH tunnel, TLS versions, cipher/kex policy, rekey, authentication options and S3 options are applied; the rest are badged as planned or unavailable in [SETTINGS.md](SETTINGS.md) |
 | Automation / CLI | Missing | Script parser, protocol URLs, compatible exit codes and logs |
 | .NET assembly | Missing | Evaluate portable automation API and compatibility strategy |

@@ -20,6 +20,10 @@ enum JobState: String { case waiting = "Waiting", running = "Transferring", done
 
 struct TransferJob: Identifiable {
     let id = UUID()
+    /// The connection (session tab) the job runs on; it keeps running when another tab is shown.
+    let client: RemoteSession
+    let session: UUID
+    let siteName: String
     let direction: TransferDirection
     let entry: FileEntry
     let destination: String
@@ -28,6 +32,21 @@ struct TransferJob: Identifiable {
     var state = JobState.waiting
     var fraction = 0.0
     var detail = "Waiting"
+}
+
+/// One connection, like a WinSCP session tab. The active tab's state lives in the model's
+/// published properties; the others keep a snapshot here until they are shown again.
+struct SessionTab: Identifiable {
+    let id: UUID
+    let client: RemoteSession
+    var site: Site
+    var remotePath: String
+    var remoteEntries: [FileEntry]
+    var remoteSelection = Set<String>()
+    var remoteHome: String
+    var localPath: String
+    let connectedAt = Date()
+    var history: [PaneSide: (back: [String], forward: [String])] = [:]
 }
 
 struct LogLine: Identifiable { let id = UUID(); let date = Date(); let text: String; let isError: Bool }
@@ -76,8 +95,13 @@ final class CommanderModel: ObservableObject {
     private var syncRemoteSnapshot: [String: FileEntry] = [:]
     private var syncLocalSnapshot: [String: FileEntry] = [:]
     private var syncSessionID = UUID()
+    /// The active tab's id, or a fresh value while no tab is open, so stale results are dropped.
     private var sessionID = UUID()
-    let client = RemoteSession()
+    @Published private(set) var tabs: [SessionTab] = []
+    @Published private(set) var activeTabID: UUID?
+    private let idleClient = RemoteSession()
+    /// The active tab's connection.
+    var client: RemoteSession { tabs.first { $0.id == activeTabID }?.client ?? idleClient }
     private(set) var store: SiteStore?
 
     var busy: Bool { connecting || operationBusy || runningQueue }
@@ -91,12 +115,13 @@ final class CommanderModel: ObservableObject {
     }
     var pendingCount: Int { jobs.filter { $0.state == .waiting || $0.state == .running }.count }
 
-    init() {
-        Self.migrateLegacyDefaults()
-        do { let store = try SiteStore(); self.store = store; sites = try store.load() }
+    /// `store` is for tests and render harnesses; the app uses the default data folder.
+    init(store custom: SiteStore? = nil) {
+        if custom == nil { Self.migrateLegacyDefaults() }
+        do { let store = try custom ?? SiteStore(); self.store = store; sites = try store.load() }
         catch { self.error = error.localizedDescription }
         refreshLocal()
-        appendLog("syncSCP 0.14.0 · Community development preview")
+        appendLog("syncSCP 0.15.0 · Community development preview")
     }
 
     /// Carries preferences over from the bundle identifier used before the rename to syncSCP.
@@ -115,16 +140,72 @@ final class CommanderModel: ObservableObject {
     func report(_ failure: Error) {
         error = failure.localizedDescription; status = "Operation failed"
         appendLog(failure.localizedDescription, error: true)
-        if case ClientError.connection = failure { closeFailedConnection() }
+        if case ClientError.connection = failure, let activeTabID { closeFailedConnection(activeTabID) }
     }
 
-    private func closeFailedConnection() {
-        stopAllEdits()
-        connected = false; remoteEntries = []; remoteSelection = []; remotePath = ""; currentSite = nil; sessionID = UUID()
-        jobs.filter { $0.state == .waiting || $0.state == .running }.forEach { $0.token.cancel() }
-        guard !connecting else { return }
-        connecting = true
-        Task { await client.disconnect(); connecting = false; appendLog("Closed the failed transport connection.") }
+    private func closeFailedConnection(_ session: UUID) {
+        guard tabs.contains(where: { $0.id == session }) else { return }
+        closeTab(session, log: "Closed the failed transport connection.")
+    }
+
+    // MARK: Session tabs
+
+    /// Keeps the shown state in the active tab before another tab is shown or opened.
+    private func storeActiveTab() {
+        guard let index = tabs.firstIndex(where: { $0.id == activeTabID }), let site = currentSite else { return }
+        tabs[index].site = site; tabs[index].remotePath = remotePath; tabs[index].remoteEntries = remoteEntries
+        tabs[index].remoteSelection = remoteSelection; tabs[index].remoteHome = remoteHome; tabs[index].localPath = localPath
+        tabs[index].history = [.local: (backHistory[.local] ?? [], forwardHistory[.local] ?? []), .remote: (backHistory[.remote] ?? [], forwardHistory[.remote] ?? [])]
+    }
+
+    private func show(_ tab: SessionTab) {
+        activeTabID = tab.id; sessionID = tab.id
+        currentSite = tab.site; remotePath = tab.remotePath; remoteEntries = tab.remoteEntries; remoteSelection = tab.remoteSelection
+        remoteHome = tab.remoteHome; connectedAt = tab.connectedAt; connected = true
+        for side in [PaneSide.local, .remote] { backHistory[side] = tab.history[side]?.back ?? []; forwardHistory[side] = tab.history[side]?.forward ?? [] }
+        if localPath != tab.localPath, FileManager.default.fileExists(atPath: tab.localPath) { localPath = tab.localPath; refreshLocal() }
+        status = "Connected to \(tab.site.host)"
+    }
+
+    private func showNoSession() {
+        activeTabID = nil; sessionID = UUID(); connected = false; currentSite = nil
+        remoteEntries = []; remoteSelection = []; remotePath = ""; remoteHome = ""; connectedAt = nil
+        backHistory[.remote] = []; forwardHistory[.remote] = []
+    }
+
+    /// A new tab can open while other tabs transfer files.
+    var canConnect: Bool { !connecting && !operationBusy }
+    var canSwitchTabs: Bool { tabs.count > 1 && !operationBusy && !connecting && editor == nil && !showSync }
+
+    func activateTab(_ id: UUID) {
+        guard id != activeTabID, !operationBusy, !connecting, let tab = tabs.first(where: { $0.id == id }) else { return }
+        storeActiveTab(); show(tab)
+    }
+
+    /// ⌘⇧] / ⌘⇧[ — wraps around like Safari tabs.
+    func activateNeighborTab(_ offset: Int) {
+        guard canSwitchTabs, let index = tabs.firstIndex(where: { $0.id == activeTabID }) else { return }
+        activateTab(tabs[(index + offset + tabs.count) % tabs.count].id)
+    }
+
+    /// WinSCP's Duplicate Session: the login sheet with this site, so a password can be entered again.
+    func duplicateSession() {
+        guard let site = currentSite, !connecting else { return }
+        requestedSite = site; showConnection = true
+    }
+
+    /// Ends one connection: its queued transfers are cancelled and its edits stop (unsent changes are kept).
+    func closeTab(_ id: UUID, log message: String = "Disconnected.") {
+        guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        let tab = tabs.remove(at: index)
+        stopEdits(of: id)
+        jobs.filter { $0.session == id && ($0.state == .waiting || $0.state == .running) }.forEach { $0.token.cancel() }
+        if id == activeTabID {
+            if let next = tabs.indices.contains(index) ? tabs[index] : tabs.last { show(next) } else { showNoSession() }
+        }
+        appendLog("\(tab.site.displayName): \(message)")
+        if tabs.isEmpty { status = "Disconnected" }
+        Task { await tab.client.disconnect() }
     }
 
     func saveSite(_ site: Site) {
@@ -160,7 +241,7 @@ final class CommanderModel: ObservableObject {
         if let open = externalEdits.first(where: { $0.remotePath == entry.path }), let live = editSessions[open.id] {
             NSWorkspace.shared.open(live.edit.localFile); return
         }
-        let generation = sessionID
+        let generation = sessionID, client = client
         operationBusy = true
         Task {
             defer { operationBusy = false }
@@ -188,7 +269,7 @@ final class CommanderModel: ObservableObject {
 
     func syncEdit(_ id: UUID) {
         guard let live = editSessions[id], !syncingEdits.contains(id) else { return }
-        guard live.session == sessionID, connected else { stopEditing(id, keepChanges: true); return }
+        guard tabs.contains(where: { $0.id == live.session }) else { stopEditing(id, keepChanges: true); return }
         syncingEdits.insert(id)
         Task {
             defer { syncingEdits.remove(id) }
@@ -198,7 +279,7 @@ final class CommanderModel: ObservableObject {
                 case .uploaded:
                     setEditStatus(id, "Uploaded " + Date().formatted(date: .omitted, time: .standard))
                     appendLog("Uploaded edited \(live.edit.remotePath).")
-                    if RemotePath.parent(live.edit.remotePath) == remotePath, !busy { navigateRemote(remotePath, recordHistory: false) }
+                    if live.session == sessionID, RemotePath.parent(live.edit.remotePath) == remotePath, !busy { navigateRemote(remotePath, recordHistory: false) }
                 case .conflict:
                     setEditStatus(id, "Changed on the server — not uploaded", conflict: true)
                     let alert = NSAlert(); alert.alertStyle = .warning
@@ -213,7 +294,7 @@ final class CommanderModel: ObservableObject {
             } catch {
                 setEditStatus(id, "Upload failed: \(error.localizedDescription)", conflict: true)
                 appendLog("\(live.edit.remotePath): \(error.localizedDescription)", error: true)
-                if case ClientError.connection = error { closeFailedConnection() }
+                if case ClientError.connection = error { closeFailedConnection(live.session) }
             }
         }
     }
@@ -234,17 +315,18 @@ final class CommanderModel: ObservableObject {
         }
     }
 
-    private func stopAllEdits() { for id in Array(editSessions.keys) { stopEditing(id, keepChanges: true) } }
+    private func stopEdits(of session: UUID) { for (id, live) in editSessions where live.session == session { stopEditing(id, keepChanges: true) } }
 
     func deleteSite(_ id: UUID) {
         do { let updated = sites.filter { $0.id != id }; try store?.save(updated); sites = updated }
         catch { report(error) }
     }
 
-    /// For S3, `password` is the secret access key and `sessionToken` optional temporary credentials; neither is saved.
+    /// Opens a new session tab; other tabs stay connected. For S3, `password` is the secret
+    /// access key and `sessionToken` optional temporary credentials; neither is saved.
     func connect(site: Site, password: String, sessionToken: String = "") {
-        guard !busy else { return }
-        stopAllEdits()
+        guard !connecting, !operationBusy else { return }
+        let client = RemoteSession()
         connecting = true; status = "Connecting to \(site.host)…"
         Task {
             defer { connecting = false }
@@ -275,28 +357,27 @@ final class CommanderModel: ObservableObject {
                     configuration = SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path,
                                                      askpassExecutable: Bundle.main.executablePath ?? CommandLine.arguments[0], credentialID: credential)
                 }
-                await client.disconnect(); connected = false
                 let home = try await client.connect(site: site, password: password, sshConfiguration: configuration, s3SessionToken: sessionToken)
                 let path = site.remotePath.isEmpty || site.remotePath == "." ? home : try await client.realpath(site.remotePath)
                 let entries = try await client.list(path)
-                sessionID = UUID(); currentSite = site; remotePath = path; remoteEntries = entries
-                remoteHome = home; connectedAt = Date(); backHistory[.remote] = []; forwardHistory[.remote] = []
-                remoteSelection = []; connected = true; showConnection = false; status = "Connected to \(site.host)"
-                if FileManager.default.fileExists(atPath: site.localPath) { navigateLocal(site.localPath) }
+                storeActiveTab()
+                let local = FileManager.default.fileExists(atPath: site.localPath) ? site.localPath : localPath
+                let tab = SessionTab(id: UUID(), client: client, site: site, remotePath: path, remoteEntries: entries, remoteHome: home, localPath: local)
+                tabs.append(tab); show(tab); showConnection = false
                 let security = site.transferProtocol.usesSSH ? "Host key verified by OpenSSH." : site.transferProtocol == .s3http ? "Unencrypted S3 connection; requests are signed with SigV4." : !site.transferProtocol.isEncrypted ? "Unencrypted \(site.transferProtocol.shortTitle) connection." : "Server certificate and hostname verified; TLS required."
                 appendLog("Connected to \(site.username)@\(site.host):\(site.port) using \(site.transferProtocol.title). \(security)")
-            } catch { await client.disconnect(); connected = false; remoteEntries = []; remotePath = ""; currentSite = nil; report(error) }
+            } catch {
+                await client.disconnect()
+                // A connection failure here belongs to the new tab only; the shown tab stays open.
+                self.error = error.localizedDescription; status = "Connection failed"; appendLog(error.localizedDescription, error: true)
+            }
         }
     }
 
+    /// Closes the shown session tab.
     func disconnect() {
-        guard !connecting else { return }
-        stopAllEdits()
-        jobs.indices.filter { jobs[$0].state == .waiting || jobs[$0].state == .running }.forEach { jobs[$0].token.cancel() }
-        sessionID = UUID(); connecting = true; connected = false
-        remoteEntries = []; remoteSelection = []; remotePath = ""; currentSite = nil
-        remoteHome = ""; connectedAt = nil; backHistory[.remote] = []; forwardHistory[.remote] = []
-        Task { await client.disconnect(); connecting = false; status = "Disconnected"; appendLog("Disconnected.") }
+        guard !connecting, !operationBusy, let activeTabID else { return }
+        closeTab(activeTabID)
     }
 
     func refreshLocal() {
@@ -399,8 +480,9 @@ final class CommanderModel: ObservableObject {
             guard alert.runModal() == .alertFirstButtonReturn else { return }; replace = true
         }
         // A directory merge needs explicit approval even if its root did not exist at listing time.
+        let siteName = currentSite?.displayName ?? ""
         for entry in entries {
-            jobs.append(TransferJob(direction: direction, entry: entry,
+            jobs.append(TransferJob(client: client, session: sessionID, siteName: siteName, direction: direction, entry: entry,
                                     destination: direction == .upload ? RemotePath.join(remotePath, entry.name) : URL(fileURLWithPath: localPath).appendingPathComponent(entry.name).path,
                                     replace: replace))
         }
@@ -456,7 +538,7 @@ final class CommanderModel: ObservableObject {
                     jobs[index].state = job.token.isCancelled ? .cancelled : .failed
                     jobs[index].detail = error.localizedDescription
                     appendLog("\(job.entry.name): \(error.localizedDescription)", error: !job.token.isCancelled)
-                    if case ClientError.connection = error { closeFailedConnection() }
+                    if case ClientError.connection = error { closeFailedConnection(job.session) }
                 }
             }
             status = jobs.contains(where: { $0.state == .failed }) ? "Transfers finished with errors — see queue" : "Transfers finished"
@@ -469,10 +551,10 @@ final class CommanderModel: ObservableObject {
         guard entry.isDirectory || entry.isRegularFile else { throw ClientError.unsupported("Symbolic links and special files are not transferred: \(entry.name)") }
         if entry.isDirectory {
             if job.direction == .upload {
-                if try await client.exists(destination) {
-                    let target = try await client.stat(destination)
+                if try await job.client.exists(destination) {
+                    let target = try await job.client.stat(destination)
                     guard target.isDirectory, job.replace else { throw ClientError.conflict("Destination exists: \(destination)") }
-                } else { try await client.mkdir(destination) }
+                } else { try await job.client.mkdir(destination) }
                 for child in try LocalFiles.list(entry.path) { try await transferTree(child, destination: RemotePath.join(destination, child.name), job: job, depth: depth + 1) }
             } else {
                 let manager = FileManager.default
@@ -480,7 +562,7 @@ final class CommanderModel: ObservableObject {
                     let attrs = try manager.attributesOfItem(atPath: destination)
                     guard attrs[.type] as? FileAttributeType == .typeDirectory, job.replace else { throw ClientError.conflict("Destination exists: \(destination)") }
                 } else { try manager.createDirectory(atPath: destination, withIntermediateDirectories: false) }
-                for child in try await client.list(entry.path) {
+                for child in try await job.client.list(entry.path) {
                     try await transferTree(child, destination: URL(fileURLWithPath: destination).appendingPathComponent(child.name).path, job: job, depth: depth + 1)
                 }
             }
@@ -493,9 +575,9 @@ final class CommanderModel: ObservableObject {
                 }
             }
             if job.direction == .upload {
-                try await client.upload(local: URL(fileURLWithPath: entry.path), remote: destination, replace: job.replace, token: job.token, progress: update)
+                try await job.client.upload(local: URL(fileURLWithPath: entry.path), remote: destination, replace: job.replace, token: job.token, progress: update)
             } else {
-                try await client.download(remote: entry.path, local: URL(fileURLWithPath: destination), replace: job.replace, token: job.token, progress: update)
+                try await job.client.download(remote: entry.path, local: URL(fileURLWithPath: destination), replace: job.replace, token: job.token, progress: update)
             }
         }
     }

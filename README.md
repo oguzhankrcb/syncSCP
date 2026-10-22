@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.14.0-blue" alt="Version 0.14.0"/>
+  <img src="https://img.shields.io/badge/version-0.15.0-blue" alt="Version 0.15.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="Platform macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal binary"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commander workflow to the Mac: a local and a remote pane, a transfer queue, per-site Advanced settings and a built-in SSH terminal. It uses the OpenSSH and libcurl that ship with macOS, keeps its own strict host-key store, and never writes passwords to disk. No account, no subscription, no telemetry.
 
-> **Status: 0.14.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
+> **Status: 0.15.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
 
 ## ⚡ Coming from WinSCP
 
@@ -54,6 +54,7 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 | ------------------------------------ | ----------------------------------------------- | ------------------------- |
 | Platform                             | macOS 13+, native (Apple Silicon and Intel)     | Windows                   |
 | Two-pane Commander                   | Yes                                             | Yes                       |
+| Session tabs (several servers)       | Yes                                             | Yes                       |
 | SFTP, SCP, FTP/FTPS, WebDAV, S3      | Yes                                             | Yes                       |
 | SSH terminal                         | Built-in window, or Terminal.app                | Via PuTTY                 |
 | SCP through `sudo su -`              | Yes, one persistent shell                       | Yes                       |
@@ -69,7 +70,8 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 
 ### 📁 Commander
 
-- WinSCP's layout with a native finish: main toolbar, a session tab in the site's color, per-pane navigation and action bars
+- WinSCP's layout with a native finish: main toolbar, per-pane navigation and action bars
+- **Session tabs**: connect to several servers at once, each tab in its site's color with its own remote and local folders; transfers keep running on their own connection while you work in another tab (⌘⇧] / ⌘⇧[ to switch, Duplicate Session ⌘⌥D)
 - Path field with a parent-folder menu, back/forward history, a clickable path strip and a ".." row
 - Local Name/Size/Type/Changed and remote Name/Size/Changed/Rights columns, with WinSCP's "0 B of 34.9 MB in 0 of 40" footer
 - Drag and drop between the panes and from Finder, through the same queue and replacement prompts
