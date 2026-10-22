@@ -1,112 +1,276 @@
-# syncSCP
-
-A native macOS file manager for SFTP, SCP, FTP/FTPS, WebDAV and S3, modelled on WinSCP's two-pane Commander workflow. Built with SwiftUI, AppKit, and macOS's OpenSSH and libcurl. Free software under **GPL-3.0-or-later**.
-
-syncSCP was previously called "WinSCP for macOS". It is an independent project and is not affiliated with or endorsed by WinSCP; it can import your sites from Windows WinSCP.
-
-**Status: 0.14.0 development preview. This is an independent community project, not an official WinSCP release, and not yet a feature-complete or source-compatible port.** The current code reimplements selected WinSCP workflows; it does not compile the upstream Windows/VCL code. The target is functional parity, tracked explicitly in [the parity matrix](docs/PARITY.md).
+<a id="top"></a>
 
 <p align="center">
-  <img src="docs/screenshots/commander.png" alt="syncSCP: Commander window with local and remote panes, an SCP session through sudo su -, and the transfer queue" width="100%"/>
+  <img src="docs/screenshots/header.png" alt="syncSCP" width="100%"/>
 </p>
-<p align="center"><em>WinSCP's two-pane Commander, native on macOS: here an SCP session running through <code>sudo su -</code>, with a transfer in the queue.</em></p>
 
-## Screenshots
+<p align="center">
+  <strong>A native macOS file manager and SSH terminal for SFTP, SCP, FTP/FTPS, WebDAV and S3</strong>
+</p>
 
-| Login | Advanced Site Settings |
-| :---: | :---: |
+<p align="center">
+  <a href="#-features">Features</a> &bull;
+  <a href="#-screenshots">Screenshots</a> &bull;
+  <a href="#-installation">Installation</a> &bull;
+  <a href="#-building">Building</a> &bull;
+  <a href="#-testing">Testing</a> &bull;
+  <a href="#-contributing">Contributing</a> &bull;
+  <a href="#-license">License</a> &bull;
+  <a href="README.tr.md">Türkçe</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.14.0-blue" alt="Version 0.14.0"/>
+  <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="Platform macOS 13+"/>
+  <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal binary"/>
+  <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-green" alt="License GPL-3.0-or-later"/></a>
+  <img src="https://img.shields.io/badge/status-development%20preview-orange" alt="Development preview"/>
+</p>
+
+<p align="center">
+  Free and open-source, with the two-pane Commander workflow WinSCP users know, built natively for the Mac.<br/>
+  Import your WinSCP sites, browse servers side by side, edit remote files in any app, and open an SSH terminal in the folder you are looking at.
+</p>
+
+---
+
+<p align="center">
+  <img src="docs/screenshots/commander.png" alt="syncSCP Commander window with local and remote panes, an SCP session through sudo su -, and the transfer queue" width="100%"/>
+</p>
+<p align="center"><em>Local and remote panes side by side: here an SCP session running through <code>sudo su -</code>, with a transfer in the queue.</em></p>
+
+---
+
+## 🚀 Overview
+
+syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commander workflow to the Mac: a local and a remote pane, a transfer queue, per-site Advanced settings and a built-in SSH terminal. It uses the OpenSSH and libcurl that ship with macOS, keeps its own strict host-key store, and never writes passwords to disk. No account, no subscription, no telemetry.
+
+> **Status: 0.14.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
+
+## ⚡ Coming from WinSCP
+
+| Feature                              | syncSCP                                         | WinSCP                    |
+| ------------------------------------ | ----------------------------------------------- | ------------------------- |
+| Platform                             | macOS 13+, native (Apple Silicon and Intel)     | Windows                   |
+| Two-pane Commander                   | Yes                                             | Yes                       |
+| SFTP, SCP, FTP/FTPS, WebDAV, S3      | Yes                                             | Yes                       |
+| SSH terminal                         | Built-in window, or Terminal.app                | Via PuTTY                 |
+| SCP through `sudo su -`              | Yes, one persistent shell                       | Yes                       |
+| Advanced Site Settings               | Every page; most options applied ([details](docs/SETTINGS.md)) | Yes        |
+| Import WinSCP sites, keys, host keys | Yes (`WinSCP.ini`, `reg export`, Wine/Whisky)   | —                         |
+| External editors with upload on save | Yes                                             | Yes                       |
+| Synchronization                      | One-way, reviewed                               | One- and two-way          |
+| Scripting / automation               | Not yet                                         | Yes                       |
+| Transfer resume, parallel queue      | Not yet                                         | Yes                       |
+| License                              | GPL-3.0-or-later                                | GPL-3.0                   |
+
+## ✨ Features
+
+### 📁 Commander
+
+- WinSCP's layout with a native finish: main toolbar, a session tab in the site's color, per-pane navigation and action bars
+- Path field with a parent-folder menu, back/forward history, a clickable path strip and a ".." row
+- Local Name/Size/Type/Changed and remote Name/Size/Changed/Rights columns, with WinSCP's "0 B of 34.9 MB in 0 of 40" footer
+- Drag and drop between the panes and from Finder, through the same queue and replacement prompts
+- Commander keys (F2 rename, F4 edit, F5 copy to the other panel, F7 new folder, F8 delete) and a Go menu (⌘[ ⌘] ⌘↑ ⌘⇧H ⌃⇥)
+- New ▸ Folder… and New ▸ File… in both panes; remembered folders per site
+- Multiple selection, sorting, hidden files and filtering
+
+### 💻 SSH Terminal
+
+- Session ▸ **Open Terminal** (⌘T) opens an interactive SSH login to the connected site in its own window
+- Starts in the folder shown in the remote pane, through the site's SCP shell (for example `sudo su -`) when one is set
+- Same Advanced settings, proxy, tunnel and strict `known_hosts` check as file sessions
+- Passwords, key passphrases and sudo prompts are answered in the terminal and never stored
+- **Open in Terminal.app** (⌘⇧T) runs the same login in macOS Terminal
+- Choose any monospaced font, including Nerd Fonts for icon prompts; follows light and dark mode; Option types characters such as @ and |
+
+### 🌐 Protocols
+
+- **SFTP v3** over `/usr/bin/ssh`, with first-use fingerprint approval and strict verification afterwards
+- **SCP** over shared OpenSSH channels, with a persistent shell for fast browsing ([requirements](docs/SCP.md))
+- **FTP, explicit and implicit FTPS** through macOS libcurl: TLS on both channels, chain and hostname verification, optional private CA ([details](docs/FTP.md))
+- **WebDAV over HTTP/HTTPS**: PROPFIND, collections, MOVE/DELETE, ETag-conditional replacement ([details](docs/WEBDAV.md))
+- **S3 and S3-compatible storage**: SigV4 signed payloads, paginated listings, multipart uploads, conditional writes, server-side-copy rename ([details](docs/S3.md))
+
+### 🔄 Transfers and Editing
+
+- File and recursive folder upload/download through a queue with progress, cancellation and per-job results
+- Transfers go to temporary `.filepart` paths and are committed only when complete; replacing a file always asks first
+- **Edit With** any application: every save is uploaded, but only if the server copy is still the version you opened
+- Built-in UTF-8 editor for quick changes, with conflict checks
+- Reviewed one-way local → remote synchronization; nothing remote is deleted
+
+### 🧭 Sites and Settings
+
+- WinSCP-style Login: sites grouped in folders, search, separate protocol and encryption choices, Save / Save As… and Manage
+- WinSCP's **Advanced Site Settings**, page for page: SCP/Shell, SFTP server, timeouts, keepalives, IPv4/IPv6, SOCKS/HTTP/local proxies, SSH tunnels, TLS versions, cipher and key-exchange policy, rekey limits, authentication, S3 options, notes and colors. Options that cannot apply on macOS are shown disabled with a reason ([details](docs/SETTINGS.md))
+- **Import from WinSCP**: `WinSCP.ini`, `reg export` files, or WinSCP running under Wine, Whisky or CrossOver on this Mac. Sites keep their folders and settings, passphrase-free PuTTY keys become OpenSSH keys, trusted host keys come along, and your data is backed up first ([details](docs/IMPORT.md))
+
+### 🔐 Security and Privacy
+
+- Host keys live in the app's own `known_hosts`; a changed key fails, with no insecure bypass
+- SSH config loading, forwarding and local commands are disabled (`-F /dev/null`)
+- Passwords are never written to site files; an SSH password sits in Keychain only for the connection attempt
+- Everything stays on your Mac: `~/Library/Application Support/SyncSCP`
+
+## 📸 Screenshots
+
+|                       Login                                   |                Advanced Site Settings                          |
+| :-----------------------------------------------------------: | :------------------------------------------------------------: |
 | ![Login with sites grouped in folders](docs/screenshots/login.png) | ![Advanced Site Settings, SCP/Shell page with sudo su -](docs/screenshots/advanced-settings.png) |
-| _Sites in folders, protocol and encryption, explicit Save_ | _Every WinSCP page; unsupported options say why_ |
+| _Sites in folders, protocol and encryption, explicit Save_    | _Every WinSCP page; unsupported options say why_               |
 
-| Import from WinSCP | External editors (dark mode) |
-| :---: | :---: |
-| ![Import from WinSCP preview with sites, warnings and host keys](docs/screenshots/import.png) | ![Edited files uploaded on save from Visual Studio Code and BBEdit](docs/screenshots/editing.png) |
-| _Sites, settings, PuTTY keys and trusted host keys from WinSCP.ini, reg export or Wine_ | _Edit With any app; saves upload only if the server copy is unchanged_ |
+|                  SSH Terminal                                 |                    Import from WinSCP                          |
+| :-----------------------------------------------------------: | :------------------------------------------------------------: |
+| ![SSH terminal through sudo su -](docs/screenshots/terminal.png) | ![Import from WinSCP preview with sites, warnings and host keys](docs/screenshots/import.png) |
+| _Opens in the remote folder, through the site's shell_        | _Sites, settings, PuTTY keys and host keys_                    |
 
-Screenshots use sample data.
+<p align="center">
+  <img src="docs/screenshots/editing.png" alt="Edited files uploaded on save from Visual Studio Code and BBEdit" width="80%"/>
+</p>
+<p align="center"><em>External editors in dark mode: every save uploads, only if the server copy is unchanged.</em></p>
 
-## Renamed from "WinSCP for macOS" (0.13.0)
+<p align="center"><sub>Screenshots use sample data.</sub></p>
 
-The app is now `syncSCP.app` with the bundle identifier `io.github.oguzhankrcb.syncscp`. On first launch it copies `~/Library/Application Support/WinSCPMac` (sites, `known_hosts`, converted keys, edits, backups) to `~/Library/Application Support/SyncSCP` and points saved key paths at the new folder. The old folder is left untouched as a backup; delete it yourself once you are happy. The default external editor setting is carried over too. Passwords saved for the current session only are not.
+## 📥 Installation
 
-## Build and run
+There are no published releases yet. Build the app from source (below), or use a ZIP made with `./scripts/package-release.sh`.
 
-Requires macOS 13 or later and an Xcode toolchain with Swift 5.9 or later. No Homebrew libraries, package downloads, Wine, Electron, or external servers are needed to build.
+The app is signed ad hoc; Developer ID signing and notarization are not set up yet. If macOS blocks a copied or downloaded build, right-click it and choose **Open**, or run:
 
-```sh
-./scripts/swift.sh test
-./scripts/test-ssh.sh
-./scripts/build-app.sh
-open "dist/syncSCP.app"
+```bash
+xattr -dr com.apple.quarantine /Applications/syncSCP.app
 ```
 
-For a development build, use `./scripts/build-app.sh --debug`. For an Apple Silicon + Intel binary, use `./scripts/build-app.sh --universal`. You can also open `Package.swift` in Xcode and run the `SyncSCP` executable scheme. The bundle is signed ad hoc for local use; Developer ID signing and notarization are not configured.
+### Requirements
 
-`./scripts/package-release.sh` builds the universal app and creates verified, versioned application/source ZIP archives in `dist/` from the current checkout, including uncommitted source changes.
+- macOS 13 Ventura or later, on Apple Silicon or Intel
+- For SFTP, SCP and the terminal: SSH access to your servers
+- For S3: an access key and secret key
 
-## Available now
+### Upgrading from "WinSCP for macOS"
 
-- WinSCP's Commander layout with a native macOS finish:
-  - a main toolbar and a session tab showing the site color and protocol;
-  - per-pane navigation (path field with a parent-folder menu, back/forward history, parent, root, home, refresh) and action bars (Upload/Download, Edit, Delete, Rename, Properties, New Folder);
-  - a highlighted path strip on the active pane, local Name/Size/Type/Changed and remote Name/Size/Changed/Rights columns, and WinSCP's "0 B of 34.9 MB in 0 of 40" footer;
-  - a Queue/Log panel and a status bar with the verification state, shell/tunnel/proxy and connection time;
-  - multiple selection, sorting, hidden files and filtering.
-- WinSCP's ".." row and a clickable path strip (every part of the path opens that folder).
-- Drag and drop: local items onto the remote pane (or Finder files onto it) upload, remote items onto the local pane download, through the same queue and replacement prompts. WinSCP's Commander keys under Files ▸ Commander Keys (F2 rename, F4 edit, F5 copy to the other panel, F7 new folder, F8 delete) and a Go menu (⌘[ back, ⌘] forward, ⌘↑ parent, ⌘⇧H home, ⌃⇥ switch panel).
-- WinSCP-style Login: sites grouped by folder (`Folder/Name`), site search, separate file protocol and encryption choices, explicit Save / Save As… and Manage.
-- Real SFTP v3 over `/usr/bin/ssh`, with explicit first-use host fingerprint approval and strict verification on subsequent connections.
-- Real legacy SCP over shared OpenSSH channels, with a separate Unix shell/stat backend for directory and file operations. See [SCP requirements and limits](docs/SCP.md).
-- FTP, explicit FTPS, and implicit FTPS through macOS's system libcurl. FTPS requires TLS on both control and data channels, certificate-chain verification, and hostname verification. Optional per-site PEM CA bundles support private certificate authorities without disabling verification.
-- WebDAV over HTTP and verified HTTPS: namespace-aware PROPFIND, GET/PUT, collections, MOVE/DELETE, ETag-conditional replacement, and temporary-collection cleanup. See [WebDAV requirements and limits](docs/WEBDAV.md).
-- S3 over HTTPS/HTTP for AWS and S3-compatible services: AWS Signature V4 with SHA-256 signed payloads, bucket and folder browsing with paginated listings, multipart uploads, server-enforced no-clobber and ETag-conditional replacement, server-side-copy rename, and SHA-256 download checks when available. Secret keys and session tokens stay in memory. See [S3 requirements and limits](docs/S3.md).
-- FTP MLSD listings with Unix/DOS LIST fallback, binary transfers, UTC modification times when exposed, and permissions when the server provides them. Unknown rights are shown as unavailable.
-- SSH-agent/default-key, explicit OpenSSH private key, and password/key-passphrase authentication. Passwords are temporarily placed in Keychain for `SSH_ASKPASS`, then removed after the connection attempt; saved site JSON contains no passwords.
-- File and recursive directory upload/download; a sequential queue, progress, cancellation, and per-job results. Files are transferred through temporary `.filepart` paths and committed after completion.
-- Explicit approval before replacement. Cancelling a transfer preserves the old destination file. SFTP atomic replacement requires the OpenSSH `posix-rename` extension; FTP uses server-provided RNFR/RNTO semantics, whose atomicity and race behavior are server-dependent.
-- New ▸ Folder… (F7) and New ▸ File… (⇧F4, ⌘⌥N) in both panes; a new remote file is created empty without replacing an existing one and opens in the editor.
-- Remote mkdir, rename, recursive delete, POSIX permission editing; local folder creation, rename, and Trash integration.
-- UTF-8 remote text editor (4 MB maximum) with save-back and size/mtime conflict checks.
-- External editors like WinSCP's: **Edit With** opens a remote file in any application (or **Open With** for local files), and Settings (⌘,) can make one the default for Edit/F4. The file is downloaded to a private folder; every save that changes the content is uploaded, but only if the server copy is still the version you opened. Otherwise you are asked before overwriting. The Editing tab lists watched files; copies with changes that were never uploaded are kept, never deleted.
-- Reviewed, one-way local → remote synchronization by size/mtime. No remote deletions; symlinks are skipped; type conflicts block execution.
-- WinSCP's Advanced Site Settings, page for page: SCP/Shell (for example `sudo su -`), SFTP server command, timeouts, keepalives, IPv4/IPv6, SOCKS/HTTP/local proxies, SSH tunnels, TLS versions, cipher and key-exchange policies, rekey limits, authentication options, S3 options, notes and site colors. PuTTY-only and not-yet-applied options are shown disabled with a reason. See [Advanced Site Settings](docs/SETTINGS.md).
-- Import from Windows WinSCP: exported `WinSCP.ini`, `reg export` files, or WinSCP under Wine/Whisky/CrossOver on this Mac. Sites come with their folders and all Advanced settings; passphrase-free PuTTY `.ppk` keys are converted to OpenSSH format; trusted host keys are added. Existing data is backed up first and passwords are never imported. See [importing](docs/IMPORT.md).
-- An SSH terminal, like WinSCP's Open Terminal: Session ▸ **Open Terminal** (⌘T) or the toolbar's **Terminal** button opens a new interactive login to the connected SFTP/SCP site in its own window. It starts in the folder shown in the remote pane and runs the site's SCP/Shell (for example `sudo su -`) when one is set. It uses the same Advanced settings, proxy, tunnel and strict known_hosts check as file sessions. Passwords, key passphrases and sudo prompts are answered in the terminal and never stored. **Open in Terminal.app** (⌘⇧T) runs the same login in macOS Terminal. Settings ▸ Terminal picks the font (choose a Nerd Font for icon prompts) and size. The terminal is drawn by [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT).
-- Saved site settings and bounded session logs.
+On first launch syncSCP copies `~/Library/Application Support/WinSCPMac` (sites, `known_hosts`, converted keys, edits, backups) to `~/Library/Application Support/SyncSCP` and updates saved key paths. The old folder is left as a backup; delete it yourself when you are happy. Your default external editor is carried over too.
 
-SFTP uses binary protocol messages rather than shell commands or parsing `ls`. Spaces, quotes, Unicode, and newline characters in SFTP filenames are preserved. Invalid UTF-8 names are reported, not silently changed. SFTP and local filesystem operations reject symlink transfers. FTP paths reject control characters, and FTP relies on the file types reported by its server; recursive deletion requires Unix LIST types so an existing symlink can be removed without traversing it. See [FTP capabilities and limits](docs/FTP.md).
+## 🔨 Building
 
-## Connect
+Requires macOS 13+ and an Xcode toolchain with Swift 5.9 or later. No Homebrew libraries, Wine or Electron; the only downloaded package is SwiftTerm, pinned exactly.
 
-Choose **New Session**, select SFTP, SCP, FTP, an FTPS mode, WebDAV or S3 over HTTP/HTTPS, then enter the host, port, and username. Protocol selection updates standard ports (SFTP/SCP 22, FTP/explicit FTPS 21, implicit FTPS 990, HTTP WebDAV/S3 80, HTTPS WebDAV/S3 443). Saved sites open in the login sheet so passwords can be entered again; older site files retain their original settings and default to SFTP.
+```bash
+git clone https://github.com/oguzhankrcb/syncSCP.git
+cd syncSCP
 
-For SFTP or SCP, compare the first-use host fingerprint with a trusted source before approving it. Key and agent authentication do not require a saved password. For FTPS, the certificate must be valid for the selected host and trusted by the system or the selected PEM CA bundle. Plain FTP displays its unencrypted status. FTP/FTPS passwords stay in memory until disconnect and are never written to site JSON or command-line arguments. **Advanced…** opens the Advanced Site Settings: initial directories, SSH key, TLS CA file, shell, proxy, tunnel and protocol options. For WebDAV, enter the endpoint path in WebDAV path; Basic authentication and ETag-conditional replacement are supported. For S3, enter the access key ID as user name and the secret access key as password, plus an optional session token. Set the endpoint, region and initial `/bucket` path; `/` lists all buckets.
+# Unit tests, then the real local SFTP/SCP daemons
+./scripts/swift.sh test
+./scripts/test-ssh.sh
 
-The application keeps its own host-key store and site settings in `~/Library/Application Support/SyncSCP/`. It deliberately disables SSH config loading (`-F /dev/null`), forwarding, and local commands. User SSH config aliases, PuTTY `.ppk` keys, and imported WinSCP password blobs are not currently supported; use the Proxy and Tunnel pages instead of SSH config. A changed trusted host key fails verification; there is no automatic reset or insecure bypass.
+# Build and open the app
+./scripts/build-app.sh
+open dist/syncSCP.app
+```
 
-Select local files and choose **Upload** (`⌘⇧U`), or select remote files and choose **Download** (`⌘⇧D`). Double-click folders to browse and remote text files to edit. File operations are also available in the context menu and the macOS menu bar.
+- `./scripts/build-app.sh --debug` makes a development build; `--universal` makes an Apple Silicon + Intel binary.
+- `./scripts/package-release.sh` builds the universal app and writes verified, versioned app and source ZIPs to `dist/`.
+- You can also open `Package.swift` in Xcode and run the `SyncSCP` scheme.
 
-## Verification
+## 🧪 Testing
 
-`./scripts/swift.sh test` includes binary-codec tests, configuration/path validation, synchronization planning, site storage, WebDAV XML/URL/ETag validation, and integration tests against Apple's real `/usr/libexec/sftp-server`. Integration tests use disposable local directories, not your SSH account or a public test service. They cover binary and empty-file round trips, difficult filenames, atomic replacement, cancellation, cleanup, permissions, and symlink handling. These protocol tests do not by themselves verify password prompts, host trust dialogs, or internet interoperability.
+`./scripts/swift.sh test` runs the codec, settings, import, synchronization and storage tests, plus SFTP tests against Apple's real `/usr/libexec/sftp-server`. Integration tests use disposable local folders, never your SSH account or a public server.
 
-`./scripts/test-ssh.sh` additionally generates disposable SSH keys, starts unprivileged daemons listening only on `127.0.0.1`, verifies actual SFTP and legacy SCP round trips, and confirms rejection of an untrusted host key. The SCP daemon has no SFTP subsystem, so these tests also demonstrate that SCP does not fall back to SFTP. It removes its keys and stops both daemons on exit. This requires permission to open a localhost port; it does not change your SSH configuration or require Remote Login to be enabled.
+For the complete SFTP + SCP + FTP + FTPS + WebDAV + S3 + terminal suite, install the isolated **test-only** dependencies (Python 3.11+), start Docker for the MinIO S3 fixture, and run:
 
-For the complete SFTP + SCP + FTP + FTPS + WebDAV + S3 suite, install the isolated **test-only** dependencies using Python 3.11+, start Docker (for the S3 MinIO fixture), then run all server fixtures together:
-
-```sh
+```bash
 ./scripts/setup-protocol-tests.sh
 ./scripts/test-ssh.sh --all
-# Also verify optimized Swift/C transport code:
 ./scripts/test-ssh.sh --all -c release
 ```
 
-The application has no Python dependency. The FTP fixture uses independent pyftpdlib servers and generated certificates in a disposable localhost directory. It covers plain FTP, both FTPS modes, legacy/sparse listings, wrong credentials, permission errors, cancellation, file integrity, timestamps, replacement conflicts, symlink deletion, untrusted certificates, hostname mismatch, and rejection of TLS downgrade. `./scripts/test-ftp.sh` runs this fixture separately; network fixtures are explicitly skipped when unavailable during the offline test command. `./scripts/test-webdav.sh` uses an independent WsgiDAV/Cheroot HTTP/HTTPS fixture with real transfers, conditional MOVE, generated certificates, authentication/read-only errors, cancellation, redirect protection, and partial-status handling. [WebDAV limits](docs/WEBDAV.md) include destination `?`/`;` refusal, no POSIX chmod/upload mtime preservation, and strong ETags being required for replacement. `./scripts/test-s3.sh` starts two disposable, localhost-only MinIO containers (HTTP and HTTPS with a generated CA) from a digest-pinned image. It covers transfers, multipart uploads, conditional writes, rename, cancellation and abort cleanup, read-only and wrong-credential errors, and TLS trust. `SYNCSCP_SKIP_S3=1` explicitly skips S3 where Docker is unavailable.
+- **SSH:** disposable keys and unprivileged daemons on `127.0.0.1`, including an SCP-only daemon so SCP can never fall back to SFTP, a fake `sudo su -` shell, and a real pseudo-terminal for the terminal tests. Your SSH configuration and Remote Login are untouched.
+- **FTP/FTPS:** pyftpdlib servers with generated certificates: both FTPS modes, legacy listings, permission errors, cancellation, untrusted certificates, hostname mismatch and TLS downgrade.
+- **WebDAV:** WsgiDAV/Cheroot over HTTP and HTTPS: conditional MOVE, authentication and read-only errors, redirects and partial status.
+- **S3:** two localhost-only MinIO containers (HTTP and HTTPS) from a digest-pinned image: multipart, conditional writes, rename, abort cleanup and TLS trust. `SYNCSCP_SKIP_S3=1` skips only S3 where Docker is unavailable.
 
-See [verification results](docs/VERIFICATION.md), [architecture](docs/ARCHITECTURE.md), [feature parity](docs/PARITY.md), and [contributing](CONTRIBUTING.md). [Türkçe](README.tr.md).
+Results per release are in [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
-## Upstream and license
+## 🛠 Tech Stack
 
-Original [WinSCP](https://winscp.net/) is maintained by Martin Prikryl and contributors; its source is [winscp/winscp](https://github.com/winscp/winscp). Upstream relies on C++Builder/VCL and Windows integrations, which cannot simply be compiled against AppKit. [The upstream reference](upstream/REFERENCE.md) records the revision investigated for this work.
+| Layer             | Technology                                                          |
+| ----------------- | ------------------------------------------------------------------- |
+| UI                | SwiftUI and AppKit, native tables and menus                         |
+| SSH, SFTP, SCP    | macOS OpenSSH (`/usr/bin/ssh`), own SFTP v3 codec                   |
+| FTP, WebDAV, S3   | macOS libcurl through a small C bridge; CryptoKit for SigV4         |
+| Terminal          | [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) 1.20.0      |
+| Credentials       | Keychain, only for the duration of a connection attempt             |
+| Storage           | JSON site store and `known_hosts` in Application Support            |
+| Build             | Swift Package Manager, universal binary via `lipo`                  |
 
-This repository's original source code is GPL-3.0-or-later; see [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md). The upstream icon set is not used. There is no warranty.
+## 🏗 Architecture
+
+- **`SyncSCPCore`** holds everything protocol-related: site models and storage, a protocol-independent `RemoteSession`, serialized SFTP/SCP/FTP/WebDAV/S3 clients, the OpenSSH process transport, WinSCP import and the synchronization planner.
+- **`SyncSCP`** is the app: the Commander window, login and settings sheets, host trust, Keychain-backed askpass, queue, editors and terminal windows. `CommanderModel` runs on the main actor; blocking I/O stays off it.
+- **`CCurlTransport`** is a small original C bridge to the system libcurl.
+
+```
+Sources/
+  CCurlTransport/        # C bridge to macOS libcurl
+  SyncSCPCore/           # Protocols, sites, import, sync (no UI)
+    SFTPClient.swift       SFTP v3 over OpenSSH
+    SCPClient.swift        Legacy SCP + persistent shell
+    FTPClient.swift        FTP / FTPS via libcurl
+    WebDAVClient.swift     WebDAV over HTTP(S)
+    S3Client.swift         S3 with SigV4
+    SSHTerminal.swift      Interactive login for the terminal
+    WinSCPImport.swift     WinSCP.ini / reg / Wine import
+  SyncSCP/               # The macOS app
+    CommanderView.swift    Two-pane Commander
+    ConnectionSheet.swift  Login and site manager
+    AdvancedSiteSettings.swift
+    TerminalWindow.swift   SwiftTerm terminal windows
+Tests/SyncSCPCoreTests/  # Unit and real-server integration tests
+scripts/                 # Build, package and test fixtures
+docs/                    # Architecture, parity, settings, verification
+```
+
+More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## 🤝 Contributing
+
+Contributions are welcome. Please open an issue first to discuss what you would like to change, then:
+
+1. Fork the repository and create a branch: `git checkout -b feature/my-change`
+2. Make the change with tests; run `./scripts/test-ssh.sh --all`
+3. Open a pull request describing what you verified, and what you did not
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the ground rules: strict host and TLS verification, array-based process arguments, no-clobber transfers, and honest verification notes.
+
+## 🐛 Troubleshooting
+
+- **"Trust this SSH server?"** appears on the first connection. Compare the fingerprint with one from your server administrator before trusting it.
+- **Host key verification failed:** the server's key changed since you trusted it. syncSCP never bypasses this; confirm the change, then remove the old line from `~/Library/Application Support/SyncSCP/known_hosts`.
+- **SCP shell "did not start the command":** `sudo su -` must work without a password prompt for file sessions (`NOPASSWD` in sudoers). The terminal asks for the sudo password itself.
+- **`sudo: unable to resolve host …`** in the terminal comes from the server: its own hostname is missing from `/etc/hosts`. sudo still works.
+- **Icons show as `?` in the terminal:** pick a Nerd Font in Settings ▸ Terminal.
+- **macOS blocks the app:** see [Installation](#-installation).
+
+## 📄 License
+
+syncSCP's original source code is licensed under the **GNU General Public License v3.0 or later**; see [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md). There is no warranty.
+
+## 🙏 Acknowledgments
+
+- Inspired by [WinSCP](https://winscp.net/) by Martin Prikryl and contributors ([source](https://github.com/winscp/winscp)). syncSCP uses none of its code or icons; [upstream/REFERENCE.md](upstream/REFERENCE.md) records the revision studied.
+- SSH by [OpenSSH](https://www.openssh.com/) and FTP/WebDAV/S3 transport by [libcurl](https://curl.se/libcurl/), both as shipped with macOS
+- Terminal emulation by [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT)
+- README layout inspired by [anySCP](https://github.com/macnev2013/anySCP)
+
+---
+
+<p align="center">
+  If syncSCP is useful to you, consider giving it a ⭐ on GitHub.
+</p>
+
+<p align="center">
+  <a href="#top">Back to top</a>
+</p>

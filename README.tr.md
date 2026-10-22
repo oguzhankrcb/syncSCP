@@ -1,103 +1,276 @@
-# syncSCP
-
-SFTP, SCP, FTP/FTPS, WebDAV ve S3 için yerel bir macOS dosya yöneticisi. WinSCP'nin çift panelli Commander iş akışını örnek alır; SwiftUI/AppKit ile yazıldı. Lisans: **GPL-3.0-or-later**.
-
-Projenin eski adı "WinSCP for macOS" idi. Bağımsız bir projedir; WinSCP ile bağlantısı yoktur ve WinSCP tarafından desteklenmez. Windows WinSCP'deki sitelerinizi içe aktarabilir.
-
-**0.14.0 geliştirme önizlemesidir. Resmî WinSCP sürümü veya henüz bire bir tamamlanmış bir port değildir.** Windows/VCL kaynakları doğrudan derlenmez; seçili işlevler macOS için yeniden uygulanmıştır.
+<a id="top"></a>
 
 <p align="center">
-  <img src="docs/screenshots/commander.png" alt="syncSCP Commander penceresi" width="100%"/>
+  <img src="docs/screenshots/header.png" alt="syncSCP" width="100%"/>
 </p>
 
-| Login | Advanced Site Settings |
-| :---: | :---: |
+<p align="center">
+  <strong>SFTP, SCP, FTP/FTPS, WebDAV ve S3 için yerel bir macOS dosya yöneticisi ve SSH terminali</strong>
+</p>
+
+<p align="center">
+  <a href="#-özellikler">Özellikler</a> &bull;
+  <a href="#-ekran-görüntüleri">Ekran görüntüleri</a> &bull;
+  <a href="#-kurulum">Kurulum</a> &bull;
+  <a href="#-derleme">Derleme</a> &bull;
+  <a href="#-testler">Testler</a> &bull;
+  <a href="#-katkı">Katkı</a> &bull;
+  <a href="#-lisans">Lisans</a> &bull;
+  <a href="README.md">English</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.14.0-blue" alt="Sürüm 0.14.0"/>
+  <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="macOS 13+"/>
+  <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal"/>
+  <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-green" alt="Lisans GPL-3.0-or-later"/></a>
+  <img src="https://img.shields.io/badge/status-development%20preview-orange" alt="Geliştirme önizlemesi"/>
+</p>
+
+<p align="center">
+  Ücretsiz ve açık kaynak; WinSCP kullanıcılarının bildiği çift panelli Commander düzeni, Mac'e özgü olarak.<br/>
+  WinSCP sitelerinizi içe aktarın, sunucuları yan yana gezin, uzak dosyaları istediğiniz uygulamada düzenleyin ve baktığınız klasörde SSH terminali açın.
+</p>
+
+---
+
+<p align="center">
+  <img src="docs/screenshots/commander.png" alt="syncSCP Commander penceresi: yerel ve uzak panel, sudo su - üzerinden SCP oturumu ve aktarım kuyruğu" width="100%"/>
+</p>
+<p align="center"><em>Yerel ve uzak panel yan yana: <code>sudo su -</code> üzerinden çalışan bir SCP oturumu ve kuyruktaki bir aktarım.</em></p>
+
+---
+
+## 🚀 Genel bakış
+
+syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygulamasıdır (SwiftUI ve AppKit): yerel ve uzak panel, aktarım kuyruğu, site başına Advanced ayarlar ve yerleşik SSH terminali. macOS ile gelen OpenSSH ve libcurl'ü kullanır, kendi sıkı host key deposunu tutar ve parolaları hiçbir zaman diske yazmaz. Hesap, abonelik veya telemetri yok.
+
+> **Durum: 0.14.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
+
+## ⚡ WinSCP'den geçenler için
+
+| Özellik                                  | syncSCP                                         | WinSCP              |
+| ---------------------------------------- | ----------------------------------------------- | ------------------- |
+| Platform                                 | macOS 13+, yerel (Apple Silicon ve Intel)       | Windows             |
+| Çift panelli Commander                   | Var                                             | Var                 |
+| SFTP, SCP, FTP/FTPS, WebDAV, S3          | Var                                             | Var                 |
+| SSH terminali                            | Yerleşik pencere veya Terminal.app              | PuTTY ile           |
+| `sudo su -` üzerinden SCP                | Var, tek kalıcı shell                           | Var                 |
+| Advanced Site Settings                   | Tüm sayfalar; çoğu ayar uygulanıyor ([ayrıntı](docs/SETTINGS.md)) | Var |
+| WinSCP sitelerini, anahtarlarını, host key'lerini içe aktarma | Var (`WinSCP.ini`, `reg export`, Wine/Whisky) | — |
+| Kaydedince yükleyen harici editörler     | Var                                             | Var                 |
+| Eşitleme                                 | Tek yönlü, önizlemeli                           | Tek ve çift yönlü   |
+| Betik / otomasyon                        | Henüz yok                                       | Var                 |
+| Aktarımı sürdürme, paralel kuyruk        | Henüz yok                                       | Var                 |
+| Lisans                                   | GPL-3.0-or-later                                | GPL-3.0             |
+
+## ✨ Özellikler
+
+### 📁 Commander
+
+- WinSCP düzeni, macOS görünümüyle: ana araç çubuğu, site renginde oturum sekmesi, panel başına gezinme ve işlem çubukları
+- Üst klasör menülü yol alanı, geri/ileri geçmişi, tıklanabilir yol şeridi ve ".." satırı
+- Yerelde Name/Size/Type/Changed, uzakta Name/Size/Changed/Rights sütunları ve WinSCP'nin "0 B of 34.9 MB in 0 of 40" özeti
+- Paneller arasında ve Finder'dan sürükle-bırak; aynı kuyruk ve üzerine yazma soruları
+- Commander tuşları (F2 yeniden adlandır, F4 düzenle, F5 diğer panele kopyala, F7 klasör, F8 sil) ve Go menüsü (⌘[ ⌘] ⌘↑ ⌘⇧H ⌃⇥)
+- İki panelde de New ▸ Folder… ve New ▸ File…; site başına son klasör hatırlanır
+- Çoklu seçim, sıralama, gizli dosyalar ve filtre
+
+### 💻 SSH terminali
+
+- Session ▸ **Open Terminal** (⌘T), bağlı siteye ayrı bir pencerede etkileşimli SSH girişi açar
+- Uzak panelde açık klasörde başlar; SCP shell ayarı (örneğin `sudo su -`) varsa onun üzerinden
+- Dosya oturumuyla aynı Advanced ayarlar, proxy, tunnel ve sıkı `known_hosts` kontrolü
+- Parola, anahtar parolası ve sudo soruları terminalin içinde sorulur; hiçbiri saklanmaz
+- **Open in Terminal.app** (⌘⇧T) aynı girişi macOS Terminal'de açar
+- İstediğiniz monospace font (ikonlu prompt'lar için Nerd Font dahil); açık/koyu temaya uyar; Option tuşu @ ve | gibi karakterleri yazar
+
+### 🌐 Protokoller
+
+- **SFTP v3**, `/usr/bin/ssh` üzerinden; ilk bağlantıda parmak izi onayı, sonrasında sıkı doğrulama
+- **SCP**, paylaşılan OpenSSH kanallarıyla; hızlı gezinme için kalıcı shell ([gereksinimler](docs/SCP.md))
+- **FTP, explicit ve implicit FTPS**, macOS libcurl ile: iki kanalda TLS, sertifika zinciri ve hostname doğrulaması, isteğe bağlı özel CA ([ayrıntı](docs/FTP.md))
+- **HTTP/HTTPS üzerinden WebDAV**: PROPFIND, koleksiyonlar, MOVE/DELETE, ETag koşullu değiştirme ([ayrıntı](docs/WEBDAV.md))
+- **S3 ve S3 uyumlu depolama**: SigV4 imzalı içerik, sayfalı listeleme, multipart yükleme, koşullu yazma, sunucu tarafı kopyayla yeniden adlandırma ([ayrıntı](docs/S3.md))
+
+### 🔄 Aktarım ve düzenleme
+
+- Dosya ve alt klasörlerle birlikte yükleme/indirme; ilerleme, iptal ve iş başına sonuç gösteren kuyruk
+- Aktarımlar geçici `.filepart` yoluna yapılır ve yalnızca tamamlanınca yerine konur; üzerine yazmadan önce her zaman sorulur
+- **Edit With** ile istediğiniz uygulama: her kayıt yüklenir, ama sunucudaki kopya açtığınız sürümse
+- Hızlı değişiklikler için yerleşik UTF-8 editör, çakışma kontrolüyle
+- Önizlemeli, tek yönlü yerel → uzak eşitleme; uzakta hiçbir şey silinmez
+
+### 🧭 Siteler ve ayarlar
+
+- WinSCP tarzı Login: klasörlü site ağacı, arama, ayrı protokol ve şifreleme seçimi, Save / Save As… ve Manage
+- WinSCP'nin **Advanced Site Settings** penceresi sayfa sayfa: SCP/Shell, SFTP server, zaman aşımı, keepalive, IPv4/IPv6, SOCKS/HTTP/yerel proxy, SSH tunnel, TLS sürümleri, cipher ve key exchange sıralaması, rekey, kimlik doğrulama, S3 seçenekleri, not ve renk. macOS'ta uygulanamayan seçenekler gerekçesiyle pasif gösterilir ([ayrıntı](docs/SETTINGS.md))
+- **WinSCP'den içe aktarma**: `WinSCP.ini`, `reg export` dosyası ya da bu Mac'te Wine, Whisky veya CrossOver altında çalışan WinSCP. Siteler klasörleri ve ayarlarıyla gelir, şifresiz PuTTY anahtarları OpenSSH'a çevrilir, güvenilen host key'ler eklenir ve önce yedek alınır ([ayrıntı](docs/IMPORT.md))
+
+### 🔐 Güvenlik ve gizlilik
+
+- Host key'ler uygulamanın kendi `known_hosts` dosyasında; değişen anahtar reddedilir, güvensiz atlama yok
+- SSH config okuma, yönlendirme ve yerel komutlar kapalı (`-F /dev/null`)
+- Parolalar site dosyalarına yazılmaz; SSH parolası yalnızca bağlantı denemesi süresince Keychain'de durur
+- Her şey Mac'inizde kalır: `~/Library/Application Support/SyncSCP`
+
+## 📸 Ekran görüntüleri
+
+|                         Login                                 |                 Advanced Site Settings                         |
+| :-----------------------------------------------------------: | :------------------------------------------------------------: |
 | ![Klasörlü site listesiyle Login](docs/screenshots/login.png) | ![SCP/Shell sayfası, sudo su -](docs/screenshots/advanced-settings.png) |
-| _Klasörlü siteler, protokol ve şifreleme seçimi_ | _WinSCP'nin tüm ayar sayfaları_ |
+| _Klasörlü siteler, protokol ve şifreleme seçimi_              | _WinSCP'nin tüm ayar sayfaları_                                |
 
-| WinSCP'den içe aktarma | Harici editörler (koyu tema) |
-| :---: | :---: |
-| ![WinSCP'den içe aktarma önizlemesi](docs/screenshots/import.png) | ![Harici editörde düzenlenen dosyalar](docs/screenshots/editing.png) |
-| _Siteler, ayarlar, PuTTY anahtarları ve host key'ler_ | _Kaydedince sunucuya yüklenir_ |
+|                      SSH terminali                            |                  WinSCP'den içe aktarma                        |
+| :-----------------------------------------------------------: | :------------------------------------------------------------: |
+| ![sudo su - üzerinden SSH terminali](docs/screenshots/terminal.png) | ![WinSCP'den içe aktarma önizlemesi](docs/screenshots/import.png) |
+| _Uzak klasörde, sitenin shell'i üzerinden açılır_             | _Siteler, ayarlar, PuTTY anahtarları ve host key'ler_          |
 
-Ekran görüntüleri örnek veriler içerir.
+<p align="center">
+  <img src="docs/screenshots/editing.png" alt="Harici editörde düzenlenen dosyalar" width="80%"/>
+</p>
+<p align="center"><em>Koyu temada harici editörler: her kayıt, sunucudaki kopya değişmediyse yüklenir.</em></p>
 
-```sh
-./scripts/swift.sh test
-./scripts/build-app.sh
-open "dist/syncSCP.app"
+<p align="center"><sub>Ekran görüntüleri örnek veriler içerir.</sub></p>
+
+## 📥 Kurulum
+
+Henüz yayımlanmış sürüm yok. Uygulamayı kaynaktan derleyin (aşağıda) ya da `./scripts/package-release.sh` ile üretilen ZIP'i kullanın.
+
+Uygulama ad-hoc imzalıdır; Developer ID imzası ve notarization henüz yok. macOS kopyalanmış ya da indirilmiş bir derlemeyi engellerse sağ tıklayıp **Open** seçin veya şunu çalıştırın:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/syncSCP.app
 ```
 
-macOS 13+ ve Swift 5.9+ içeren Xcode araçları gerekir. Apple Silicon + Intel paketi için `./scripts/build-app.sh --universal` kullanın.
+### Gereksinimler
 
-Mevcut kapsam: gerçek SFTP, SCP, FTP/FTPS, WebDAV ve S3, çift panel, anahtar/agent/parola ile bağlantı, sunucu anahtarı doğrulaması, dosya ve klasör aktarımı, iptal edilebilir kuyruk, uzak dosya işlemleri, UTF-8 düzenleyici ve önizlemeli yerelden uzağa eşitleme. SSH parolaları oturum açılırken geçici olarak Keychain'e konur ve bağlantı denemesi sonrasında silinir; oturum dosyasına yazılmaz.
+- macOS 13 Ventura veya üstü, Apple Silicon ya da Intel
+- SFTP, SCP ve terminal için sunucularınıza SSH erişimi
+- S3 için access key ve secret key
 
-0.2.0 ile FTP, explicit FTPS ve implicit FTPS eklendi. Protokol seçimi, sertifika ve sunucu adı doğrulaması, özel CA dosyası, MLSD/Unix/DOS dizin listeleri, iptal edilebilir aktarımlar ve dosya işlemleri aynı arayüzde çalışır. FTP parolaları bağlantı boyunca bellekte tutulur; kayıtlı oturumlara yazılmaz. FTP üzerinden yeniden adlandırmanın atomikliği sunucuya bağlıdır. [FTP ayrıntıları](docs/FTP.md).
+### "WinSCP for macOS"tan geçiş
 
-Tüm protokol testleri için Python 3.11+ ile `./scripts/setup-protocol-tests.sh`, ardından `./scripts/test-ssh.sh --all` çalıştırın. Python yalnızca test sunucuları içindir; uygulama macOS'un kendi kütüphanelerini kullanır.
+syncSCP ilk açılışta `~/Library/Application Support/WinSCPMac` klasörünü (siteler, `known_hosts`, çevrilmiş anahtarlar, düzenlemeler, yedekler) `~/Library/Application Support/SyncSCP` altına kopyalar ve kayıtlı anahtar yollarını günceller. Eski klasör yedek olarak kalır; her şey yolundaysa kendiniz silebilirsiniz. Varsayılan harici editör ayarı da taşınır.
 
-0.3.0 ile SCP eklendi. Dosyalar gerçek eski SCP protokolüyle aktarılır; dizin ve dosya işlemleri aynı SSH bağlantısındaki ayrı komut kanallarını kullanır. Sunucuda Unix kabuğu, scp ve GNU/BSD stat ile temel dosya araçları gerekir. Parola bir kez kullanılır; sonraki işlemler açık SSH oturumunu paylaşır. SFTP kapalı bir test sunucusunda dosya bütünlüğü, iptal, üzerine yazma koruması, izinler ve güven doğrulandı. SCP aktarımında satır sonu içeren uzak yollar desteklenmez; bu dosyalar için SFTP seçin. [SCP ayrıntıları](docs/SCP.md).
+## 🔨 Derleme
 
-0.4.0 ile HTTP/HTTPS WebDAV eklendi. PROPFIND dizin listeleri, dosya/klasör aktarımı, yeniden adlandırma, silme, editör ve eşitleme aynı arayüzü kullanır. HTTPS sertifika ve sunucu adını doğrular; WebDAV parolaları yalnızca bağlantı boyunca bellekte tutulur; üzerine yazma güçlü ETag koşuluyla yapılır. Sunucu yolunu gelişmiş ayarlardaki WebDAV path alanına girin. Bu sürüm WebDAV hedef yollarında `?`/`;` karakterlerine yazmayı reddeder; POSIX izinleri ve yüklemede yerel zaman damgasını koruma desteklenmez. [WebDAV ayrıntıları](docs/WEBDAV.md).
+macOS 13+ ve Swift 5.9 veya üstü içeren bir Xcode araç zinciri gerekir. Homebrew kütüphanesi, Wine veya Electron yok; indirilen tek paket sürümü sabitlenmiş SwiftTerm.
 
-0.5.0 ile HTTPS/HTTP üzerinden S3 eklendi (AWS ve S3 uyumlu servisler). İstekler AWS Signature V4 ve SHA-256 imzalı içerikle gönderilir. Bucket/klasör listeleri sayfalı alınır, büyük dosyalar multipart yüklenir. Üzerine yazma koruması ve onaylı değiştirme sunucu tarafında `If-None-Match`/`If-Match` ile uygulanır. Yeniden adlandırma sunucu tarafı kopyayla yapılır. Kullanıcı adı alanına access key ID, parola alanına secret key girilir; secret key ve isteğe bağlı session token yalnızca bellekte tutulur. Klasör yeniden adlandırma, bucket yönetimi ve AWS üzerinde doğrulama henüz yoktur. S3 testleri Docker'da geçici MinIO sunucuları kullanır. [S3 ayrıntıları](docs/S3.md).
+```bash
+git clone https://github.com/oguzhankrcb/syncSCP.git
+cd syncSCP
 
-0.6.0 ile WinSCP'nin Advanced Site Settings penceresi sayfa sayfa geldi. Login ekranındaki **Advanced…** düğmesiyle açılır. Çalışan ayarlar:
+# Birim testleri, ardından gerçek yerel SFTP/SCP sunucuları
+./scripts/swift.sh test
+./scripts/test-ssh.sh
 
-- SCP/Shell, örneğin `sudo su -`; sudo şifre sormamalı (NOPASSWD)
-- SFTP server komutu, örneğin `sudo /usr/lib/openssh/sftp-server`
-- zaman aşımı, keepalive ve IPv4/IPv6 seçimi
-- SOCKS/HTTP/yerel komut proxy'si ve SSH tunnel
-- TLS sürümleri
-- cipher ve key exchange sıralaması, rekey sınırları
-- kimlik doğrulama seçenekleri, S3 seçenekleri, not ve site rengi
+# Uygulamayı derleyip açın
+./scripts/build-app.sh
+open dist/syncSCP.app
+```
 
-PuTTY'ye özgü veya henüz uygulanmayan ayarlar gri görünür ve nedenini belirten bir etiket taşır. [Ayar ayrıntıları](docs/SETTINGS.md).
+- `./scripts/build-app.sh --debug` geliştirme derlemesi; `--universal` Apple Silicon + Intel derlemesi üretir.
+- `./scripts/package-release.sh` universal uygulamayı derler ve `dist/` altına doğrulanmış, sürüm numaralı uygulama ve kaynak ZIP'leri yazar.
+- `Package.swift` dosyasını Xcode'da açıp `SyncSCP` şemasını da çalıştırabilirsiniz.
 
-0.7.0 ile ana pencere ve Login ekranı onaylanan mockup'a göre yenilendi. Yeni öğeler:
+## 🧪 Testler
 
-- WinSCP düzeninde araç çubuğu ve oturum sekmesi
-- panel başına gezinme çubuğu (geri/ileri geçmişi, üst klasör, kök, ev, yenile) ve işlem çubuğu
-- aktif panelde mavi yol şeridi, Type/Changed/Rights sütunları ve "X / Y içinde a / b" özeti
-- kuyruk/günlük paneli ve bağlantı süresini gösteren durum çubuğu
-- Login'de klasörlü site ağacı (`Klasör/Ad`), arama, ayrı protokol/şifreleme seçimi, açık Save / Save As… ve Manage
+`./scripts/swift.sh test`; codec, ayar, içe aktarma, eşitleme ve depolama testlerini ve Apple'ın gerçek `/usr/libexec/sftp-server`'ına karşı SFTP testlerini çalıştırır. Entegrasyon testleri geçici yerel klasörler kullanır; SSH hesabınıza veya herkese açık bir sunucuya hiç dokunmaz.
 
-0.8.0 ile Windows WinSCP'den içe aktarma geldi: **File ▸ Import from WinSCP…** veya Login'de **Tools ▸ Import Sites from WinSCP…**. Kaynak olabilecekler:
+SFTP + SCP + FTP + FTPS + WebDAV + S3 + terminal paketinin tamamı için yalnızca testte kullanılan izole bağımlılıkları kurun (Python 3.11+), MinIO S3 fixture'ı için Docker'ı başlatın ve çalıştırın:
 
-- dışa aktarılmış `WinSCP.ini`
-- `reg export` dosyası
-- Wine, Whisky veya CrossOver altında çalışan WinSCP ("Find on This Mac")
+```bash
+./scripts/setup-protocol-tests.sh
+./scripts/test-ssh.sh --all
+./scripts/test-ssh.sh --all -c release
+```
 
-Siteler klasörleri ve tüm Advanced ayarlarıyla gelir. Şifresiz PuTTY `.ppk` anahtarları OpenSSH formatına çevrilir; WinSCP'de güvenilen host key'ler eklenir. Önce yedek alınır. Parolalar hiçbir zaman içe aktarılmaz. [Ayrıntılar](docs/IMPORT.md).
+- **SSH:** `127.0.0.1` üzerinde geçici anahtarlar ve yetkisiz sunucular. SCP'nin SFTP'ye düşmediğini kanıtlayan yalnızca SCP sunucusu, sahte bir `sudo su -` shell'i ve terminal testleri için gerçek bir pseudo-terminal. SSH ayarlarınıza ve Remote Login'e dokunulmaz.
+- **FTP/FTPS:** üretilmiş sertifikalarla pyftpdlib sunucuları: iki FTPS modu, eski listeleme biçimleri, izin hataları, iptal, güvenilmeyen sertifika, hostname uyuşmazlığı ve TLS düşürme denemesi.
+- **WebDAV:** HTTP ve HTTPS üzerinde WsgiDAV/Cheroot: koşullu MOVE, kimlik doğrulama ve salt okunur hatalar, yönlendirmeler ve kısmi durum yanıtları.
+- **S3:** digest ile sabitlenmiş imajdan iki localhost MinIO (HTTP ve HTTPS): multipart, koşullu yazma, yeniden adlandırma, iptal temizliği ve TLS güveni. Docker olmayan yerde `SYNCSCP_SKIP_S3=1` yalnızca S3'ü atlar.
 
-0.9.0 ile sürükle-bırak geldi:
+Sürüm başına sonuçlar [docs/VERIFICATION.md](docs/VERIFICATION.md) dosyasında.
 
-- yerel öğeleri ya da Finder'dan dosyaları uzak panele bırakmak yükler
-- uzak öğeleri yerel panele bırakmak indirir
+## 🛠 Teknolojiler
 
-WinSCP Commander tuşları Files ▸ Commander Keys altında (F2 yeniden adlandır, F4 düzenle, F5 diğer panele kopyala, F7 klasör, F8 sil; Mac klavyede fn ile). Go menüsü: ⌘[ geri, ⌘] ileri, ⌘↑ üst klasör, ⌘⇧H ev, ⌃⇥ panel değiştir. "Remember last used directory" ayarı artık uygulanıyor.
+| Katman            | Teknoloji                                                           |
+| ----------------- | ------------------------------------------------------------------- |
+| Arayüz            | SwiftUI ve AppKit, yerel tablolar ve menüler                        |
+| SSH, SFTP, SCP    | macOS OpenSSH (`/usr/bin/ssh`), kendi SFTP v3 codec'i               |
+| FTP, WebDAV, S3   | Küçük bir C köprüsüyle macOS libcurl; SigV4 için CryptoKit          |
+| Terminal          | [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) 1.20.0      |
+| Kimlik bilgileri  | Keychain, yalnızca bağlantı denemesi süresince                      |
+| Depolama          | Application Support altında JSON site deposu ve `known_hosts`       |
+| Derleme           | Swift Package Manager, `lipo` ile universal binary                  |
 
-0.10.0 ile SCP'de klasör açmak çok daha hızlı. WinSCP gibi tek bir kalıcı shell (örneğin `sudo su -`) açılıyor ve bütün komutlar ona gönderiliyor; eskiden her komut yeni bir SSH kanalı ve yeni bir shell açıyordu. Listelerin başında ".." satırı var. Yol şeridindeki her parçaya tıklayınca o klasöre gidiliyor.
+## 🏗 Mimari
 
-0.11.0 ile harici editör desteği geldi:
+- **`SyncSCPCore`** protokolle ilgili her şeyi içerir: site modelleri ve depolama, protokolden bağımsız `RemoteSession`, sıralı çalışan SFTP/SCP/FTP/WebDAV/S3 istemcileri, OpenSSH süreç taşıması, WinSCP içe aktarma ve eşitleme planlayıcısı.
+- **`SyncSCP`** uygulamanın kendisidir: Commander penceresi, giriş ve ayar pencereleri, host güveni, Keychain destekli askpass, kuyruk, editörler ve terminal pencereleri. `CommanderModel` main actor'da çalışır; bloklayan G/Ç onun dışında kalır.
+- **`CCurlTransport`** sistem libcurl'üne giden küçük, özgün bir C köprüsüdür.
 
-- Uzak dosyada sağ tık ▸ **Edit With** ile VS Code, Sublime veya TextEdit gibi bir uygulama seçilebiliyor; yerel dosyada **Open With** var.
-- Settings'ten (⌘,) varsayılan editör seçilirse Edit/F4 doğrudan o uygulamayı açıyor.
-- Dosya özel bir klasöre indiriliyor ve içeriği değişen her kayıt sunucuya yükleniyor. Sunucudaki dosya açıldıktan sonra değiştiyse üzerine yazmadan önce soruluyor.
-- Alttaki **Editing** sekmesi izlenen dosyaları gösteriyor.
-- Yüklenmemiş değişiklik içeren kopyalar hiçbir zaman silinmiyor.
+```
+Sources/
+  CCurlTransport/        # macOS libcurl için C köprüsü
+  SyncSCPCore/           # Protokoller, siteler, içe aktarma, eşitleme (arayüzsüz)
+    SFTPClient.swift       OpenSSH üzerinden SFTP v3
+    SCPClient.swift        Eski SCP + kalıcı shell
+    FTPClient.swift        libcurl ile FTP / FTPS
+    WebDAVClient.swift     HTTP(S) üzerinden WebDAV
+    S3Client.swift         SigV4 ile S3
+    SSHTerminal.swift      Terminal için etkileşimli giriş
+    WinSCPImport.swift     WinSCP.ini / reg / Wine içe aktarma
+  SyncSCP/               # macOS uygulaması
+    CommanderView.swift    Çift panelli Commander
+    ConnectionSheet.swift  Login ve site yöneticisi
+    AdvancedSiteSettings.swift
+    TerminalWindow.swift   SwiftTerm terminal pencereleri
+Tests/SyncSCPCoreTests/  # Birim ve gerçek sunucu entegrasyon testleri
+scripts/                 # Derleme, paketleme ve test sunucuları
+docs/                    # Mimari, eşitlik, ayarlar, doğrulama
+```
 
-0.12.0 ile iki panelin işlem çubuğuna **New ▾** menüsü eklendi: Folder… (F7) ve File… (⇧F4, ⌘⌥N). Yeni dosya boş oluşturuluyor; aynı adda bir dosya varsa üzerine yazılmıyor. Uzak panelde oluşturulan dosya hemen editörde açılıyor.
+Ayrıntılar [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) dosyasında (İngilizce).
 
-0.14.0 ile **SSH terminali** geldi (WinSCP'deki Open Terminal gibi). Bağlıyken Session ▸ **Open Terminal** (⌘T) ya da araç çubuğundaki **Terminal** düğmesi, siteye ayrı bir pencerede yeni bir etkileşimli giriş açar:
+## 🤝 Katkı
 
-- Uzak panelde açık olan klasörde başlar; SCP/Shell ayarı (örneğin `sudo su -`) varsa onu çalıştırır.
-- Dosya oturumuyla aynı Advanced ayarları, proxy, tunnel ve sıkı host key kontrolünü kullanır.
-- Parola, anahtar parolası ve sudo soruları terminalin içinde sorulur; hiçbiri saklanmaz.
-- **Open in Terminal.app** (⌘⇧T) aynı girişi macOS Terminal'de açar.
-- Settings ▸ Terminal'den font ve boyut seçilir; ikonlu prompt'lar için bir Nerd Font seçin. Option tuşu karakter yazar (@, | gibi).
-- Terminal çizimi [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT) ile yapılır.
+Katkılar memnuniyetle karşılanır. Lütfen önce ne değiştirmek istediğinizi bir issue'da konuşalım, sonra:
 
-0.13.0 ile proje **syncSCP** adını aldı. Uygulama artık `syncSCP.app`, paket kimliği `io.github.oguzhankrcb.syncscp`. İlk açılışta `~/Library/Application Support/WinSCPMac` klasörü (siteler, `known_hosts`, çevrilmiş anahtarlar, düzenlemeler, yedekler) `~/Library/Application Support/SyncSCP` altına kopyalanır ve kayıtlı anahtar yolları yeni klasöre çevrilir. Eski klasör yedek olarak bırakılır; her şey yolundaysa kendiniz silebilirsiniz. Varsayılan harici editör ayarı da taşınır.
+1. Repoyu fork'layıp bir dal açın: `git checkout -b feature/degisikligim`
+2. Değişikliği testleriyle yapın; `./scripts/test-ssh.sh --all` çalıştırın
+3. Neyi doğruladığınızı ve neyi doğrulamadığınızı yazarak pull request açın
 
-Tam WinSCP betik uyumluluğu, tünelleme, aktarımı kaldığı yerden sürdürme ve tam özellik eşitliği henüz yoktur. Ayrıntılar: [özellik tablosu](docs/PARITY.md), [İngilizce kullanım ve mimari](README.md).
+Temel kurallar [CONTRIBUTING.md](CONTRIBUTING.md) dosyasında: sıkı host ve TLS doğrulaması, dizi tabanlı süreç argümanları, üzerine yazmayan aktarımlar ve dürüst doğrulama notları.
+
+## 🐛 Sorun giderme
+
+- İlk bağlantıda **"Trust this SSH server?"** sorulur. Güvenmeden önce parmak izini sunucu yöneticinizden aldığınızla karşılaştırın.
+- **Host key verification failed:** sunucunun anahtarı, güvendiğinizden beri değişmiş. syncSCP bunu hiçbir zaman atlamaz; değişikliği doğrulayın, ardından eski satırı `~/Library/Application Support/SyncSCP/known_hosts` dosyasından silin.
+- **SCP shell "did not start the command":** dosya oturumları için `sudo su -` parola sormadan çalışmalı (sudoers'ta `NOPASSWD`). Terminal ise sudo parolasını kendisi sorar.
+- Terminalde **`sudo: unable to resolve host …`** sunucudan gelir: sunucunun kendi adı `/etc/hosts` içinde yok. sudo yine çalışır.
+- **Terminalde ikonlar `?` görünüyor:** Settings ▸ Terminal'den bir Nerd Font seçin.
+- **macOS uygulamayı engelliyor:** [Kurulum](#-kurulum) bölümüne bakın.
+
+## 📄 Lisans
+
+syncSCP'nin özgün kaynak kodu **GNU General Public License v3.0 veya sonrası** ile lisanslıdır; [LICENSE](LICENSE) ve [NOTICE.md](NOTICE.md) dosyalarına bakın. Hiçbir garanti verilmez.
+
+## 🙏 Teşekkürler
+
+- Martin Prikryl ve katkıcılarının geliştirdiği [WinSCP](https://winscp.net/)'den ([kaynak](https://github.com/winscp/winscp)) esinlenmiştir. syncSCP onun kodunu veya ikonlarını kullanmaz; incelenen sürüm [upstream/REFERENCE.md](upstream/REFERENCE.md) dosyasında kayıtlıdır.
+- SSH için [OpenSSH](https://www.openssh.com/), FTP/WebDAV/S3 taşıması için [libcurl](https://curl.se/libcurl/); ikisi de macOS ile gelen sürümleriyle
+- Terminal emülasyonu [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT)
+- README düzeni [anySCP](https://github.com/macnev2013/anySCP)'den esinlenmiştir
+
+---
+
+<p align="center">
+  syncSCP işinize yarıyorsa GitHub'da bir ⭐ vermeyi düşünün.
+</p>
+
+<p align="center">
+  <a href="#top">Başa dön</a>
+</p>
