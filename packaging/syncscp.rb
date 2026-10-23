@@ -10,7 +10,7 @@ cask "syncscp" do
   desc "Native file manager and SSH terminal for SFTP, SCP, FTP/FTPS, WebDAV and S3"
   homepage "https://github.com/oguzhankrcb/syncSCP"
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "syncSCP.app"
   binary "#{appdir}/syncSCP.app/Contents/MacOS/syncscp-cli", target: "syncscp"
