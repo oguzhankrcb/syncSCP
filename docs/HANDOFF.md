@@ -7,7 +7,7 @@ Son güncelleme: 23 Ekim 2026 (0.23.0 / syncscp-cli). Bu belge, geliştirmeyi ye
 Kullanıcının hedefi WinSCP'nin macOS üzerinde mümkün olduğunca bire bir çalışan, açık kaynak bir karşılığını oluşturmak. Proje dizini:
 
 ```text
-/Users/oguzhankaracabay/Desktop/projects/WinSCP-Mac-Port
+<repo kökü> (yerel klasör adı WinSCP-Mac-Port)
 ```
 
 Mevcut uygulama **0.23.0 geliştirme önizlemesi**. SwiftUI/AppKit ile yazılmış bağımsız, yerel bir macOS uygulaması. Windows/VCL kaynaklarının doğrudan derlenmesi veya tamamlanmış bire bir port değil. Resmî WinSCP sürümü olarak tanıtılmamalı. Lisans **GPL-3.0-or-later**; özgün uygulama ikonu kullanılıyor.
@@ -198,7 +198,7 @@ Son kayıtlar `.build/terminal-debug-tests.log`, `.build/terminal-release-tests.
 ## Çalıştırma ve geliştirme komutları
 
 ```sh
-cd /Users/oguzhankaracabay/Desktop/projects/WinSCP-Mac-Port
+cd <repo kökü>
 
 # Sunucu gerektirmeyen testler; fixture değişkenleri olmadan entegrasyonlar skip olur.
 ./scripts/swift.sh test
