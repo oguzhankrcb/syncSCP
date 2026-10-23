@@ -1,5 +1,11 @@
 # Verification record
 
+## 0.23.0 public release (2026-10-23)
+
+- The repository was made public after a history scan (no passwords, real keys, server names or addresses; commit e-mails changed to the maintainer's Gmail address).
+- `dist/syncSCP-0.23.0-macOS.zip` was signed with "Developer ID Application: Oğuzhan KARACABAY (9H24W6NC95)" (hardened runtime), notarized (Accepted), stapled, and accepted by Gatekeeper as "Notarized Developer ID", also from a quarantined copy; universal (arm64 + x86_64). SHA-256 c1c335b27e90fa55705a3d58be9c6eac48da5ab4c0f6761291c2e7faa35923fd.
+- Published as the GitHub release v0.23.0; the cask in the public tap oguzhankrcb/homebrew-tap downloads it with a matching checksum and passes `brew audit --cask --online`. Not installed through Homebrew on this Mac.
+
 ## 0.23.0 — syncscp-cli scripting and release preparation
 
 Verified locally on 2026-10-23. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **137 XCTest cases, zero failures, zero skips**.

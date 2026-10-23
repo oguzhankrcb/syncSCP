@@ -16,6 +16,13 @@ Swift Package Manager kullanılıyor; hedef macOS 13+, paket araç sürümü 5.9
 
 **Git durumu:** `origin` = kullanıcının **private** GitHub reposu `https://github.com/oguzhankrcb/syncSCP` (21 Ekim 2026'da `WinSCP-Mac-Port` olarak oluşturuldu, 0.13.0'da yeniden adlandırıldı; GitHub eski adresi yönlendiriyor). `main` dalında ilk commit (`c7b6c76`, 0.4.0 içeri aktarımı) push edildi. 0.5.0 S3 ve 0.6.0 ayar çalışmaları ayrı commit'lerdir; push durumunu `git status -sb` ile kontrol et. Proje kökündeki `syncSCP — UI mockup.html` kullanıcının dışa aktardığı mockup kopyasıdır; untracked bırakıldı, commit'lenmedi. Repo private kalmalı; public yapmak, release veya PR açmak ayrıca yetki ister. `dist/`, `.build/` ve `upstream/winscp/` git dışında tutuluyor. Yine de `git clean`, reset gibi dosya kaybettirecek işlemler yapma.
 
+## Yayın durumu (23 Ekim 2026)
+
+- Repo **public**: https://github.com/oguzhankrcb/syncSCP. Geçmişteki iş e-postası Gmail ile değiştirildi (filter-branch + force push); eski hâli yalnızca yerelde `backup/before-email-rewrite` dalında. Bu repoda `git config user.email` = oguzhankrcb@gmail.com.
+- **v0.23.0** GitHub sürümü yayında: Developer ID ile imzalı, notarized, stapled `syncSCP-0.23.0-macOS.zip`. Developer ID Application sertifikası (9H24W6NC95, 2027-11-22'ye kadar) ve özel anahtarı giriş Anahtar Zinciri'nde; notarytool profili `syncscp-notary`.
+- Homebrew: public `oguzhankrcb/homebrew-tap` reposunda `Casks/syncscp.rb` (`brew install --cask oguzhankrcb/tap/syncscp`). Her sürümde oradaki ve `packaging/syncscp.rb`'deki version/sha256 güncellenmeli.
+- Yeni sürüm: `scripts/bump-version.py`, testler, `./scripts/build-app.sh --universal`, `SYNCSCP_SIGNING_IDENTITY=… SYNCSCP_NOTARY_PROFILE=syncscp-notary ./scripts/notarize.sh`, `gh release create`, cask güncellemesi. Ayrıntı `docs/RELEASING.md`.
+
 ## 0.23.0: syncscp-cli ve dağıtım hazırlığı
 
 - Yeni hedef `syncscp-cli` (`Sources/syncscp-cli/main.swift`): winscp.com tarzı `/script=`, `/command`, `/store=`, etkileşimli istem; kendi ikilisini askpass olarak kullanıyor (`SYNCSCP_ASKPASS_ID`). Mantık core'da: `ScriptSession` (`Scripting.swift`) — komutlar, joker karakterler, `synchronize`, `option batch`, `-hostkey` onayı. Ayrıntı `docs/SCRIPTING.md`.
