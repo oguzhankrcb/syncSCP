@@ -3,7 +3,7 @@
 # then submit to a tap (for example oguzhankrcb/homebrew-tap). See docs/RELEASING.md.
 cask "syncscp" do
   version "0.23.0"
-  sha256 "REPLACE_WITH_SHA256"
+  sha256 "c1c335b27e90fa55705a3d58be9c6eac48da5ab4c0f6761291c2e7faa35923fd"
 
   url "https://github.com/oguzhankrcb/syncSCP/releases/download/v#{version}/syncSCP-#{version}-macOS.zip"
   name "syncSCP"

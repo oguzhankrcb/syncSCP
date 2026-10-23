@@ -24,17 +24,26 @@ VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resourc
 ZIP="dist/syncSCP-$VERSION-macOS.zip"
 [ -d "$APP" ] || { echo "Build the app first: ./scripts/build-app.sh --universal" >&2; exit 2; }
 
+# Work outside the checkout: folders synced by iCloud (a Desktop in iCloud Drive) put
+# FinderInfo/provenance attributes back on the bundle, which codesign refuses.
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/syncscp-release.XXXXXX")"
+trap 'rm -rf "$WORK"' EXIT
+STAGED="$WORK/syncSCP.app"
+run ditto --norsrc --noextattr --noqtn "$APP" "$STAGED"
+run xattr -cr "$STAGED"
 # Inner code first, the app last; the hardened runtime is required for notarization.
-run codesign --force --timestamp --options runtime --sign "$IDENTITY" "$APP/Contents/MacOS/syncscp-cli"
-run codesign --force --timestamp --options runtime --sign "$IDENTITY" "$APP/Contents/Resources/SwiftTerm_SwiftTerm.bundle"
-run codesign --force --timestamp --options runtime --sign "$IDENTITY" "$APP"
-run codesign --verify --strict --deep --verbose=2 "$APP"
-run ditto -c -k --keepParent "$APP" "$ZIP"
-run xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
-run xcrun stapler staple "$APP"
-run xcrun stapler validate "$APP"
-run spctl --assess --type execute --verbose=2 "$APP"
-# The stapled app goes into the final archive.
+# SwiftTerm_SwiftTerm.bundle holds only resources (no Info.plist); the app's signature seals it.
+run codesign --force --timestamp --options runtime --sign "$IDENTITY" "$STAGED/Contents/MacOS/syncscp-cli"
+run codesign --force --timestamp --options runtime --sign "$IDENTITY" "$STAGED"
+run codesign --verify --strict --deep --verbose=2 "$STAGED"
+run ditto -c -k --keepParent "$STAGED" "$WORK/upload.zip"
+run xcrun notarytool submit "$WORK/upload.zip" --keychain-profile "$PROFILE" --wait
+run xcrun stapler staple "$STAGED"
+run xcrun stapler validate "$STAGED"
+run spctl --assess --type execute --verbose=2 "$STAGED"
+# The stapled app goes into the final archive and replaces the unsigned one in dist/.
 run rm -f "$ZIP"
-run ditto -c -k --keepParent "$APP" "$ZIP"
+run ditto -c -k --keepParent "$STAGED" "$ZIP"
+run rm -rf "$APP"
+run ditto "$STAGED" "$APP"
 echo "Ready: $ZIP"

@@ -164,13 +164,17 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 
 ## 📥 Installation
 
-There are no published releases yet. Build the app from source (below), or use a ZIP made with `./scripts/package-release.sh`.
-
-The app is signed ad hoc; Developer ID signing and notarization are not set up yet. If macOS blocks a copied or downloaded build, right-click it and choose **Open**, or run:
+**Homebrew:**
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/syncSCP.app
+brew install --cask oguzhankrcb/tap/syncscp
 ```
+
+This also links the `syncscp` command-line tool.
+
+**Download:** get `syncSCP-<version>-macOS.zip` from the [latest release](https://github.com/oguzhankrcb/syncSCP/releases/latest), unzip it and move `syncSCP.app` to Applications. Releases are signed with a Developer ID and notarized by Apple, so they open normally.
+
+You can also build from source (below).
 
 ### Requirements
 

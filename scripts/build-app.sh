@@ -41,6 +41,9 @@ rm -rf "$APP_BUNDLE/Contents/Resources/docs/screenshots" # README images are not
 export CLANG_MODULE_CACHE_PATH="$TASK_ROOT/.build/clang-cache"
 xcrun swift "$TASK_ROOT/scripts/draw-icon.swift" "$TASK_ROOT/.build/AppIcon.iconset"
 iconutil -c icns "$TASK_ROOT/.build/AppIcon.iconset" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+# codesign refuses extended attributes (Finder info, provenance) anywhere in the bundle.
+chmod -R u+w "$APP_BUNDLE"
+xattr -cr "$APP_BUNDLE"
 # Nested code is signed before the bundle (lipo output carries no signature).
 codesign --force --sign - "$APP_BUNDLE/Contents/MacOS/syncscp-cli"
 codesign --force --sign - "$APP_BUNDLE"

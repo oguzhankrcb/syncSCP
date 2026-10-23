@@ -15,13 +15,13 @@ Without them macOS shows "cannot be opened because the developer cannot be verif
 SYNCSCP_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" SYNCSCP_NOTARY_PROFILE=syncscp-notary ./scripts/notarize.sh
 ```
 
-`./scripts/notarize.sh --dry-run` prints every step without signing anything. The hardened runtime needs no extra entitlements: syncSCP runs Apple's `/usr/bin/ssh` and itself as askpass.
+`./scripts/notarize.sh --dry-run` prints every step without signing anything. The script signs a copy in a temporary folder, because a checkout in an iCloud-synced Desktop gets FinderInfo attributes back on the bundle, which codesign refuses. The hardened runtime needs no extra entitlements: syncSCP runs Apple's `/usr/bin/ssh` and itself as askpass.
 
 Note: after the switch from ad-hoc to Developer ID signing, macOS asks once whether syncSCP may use its Keychain items (saved passwords).
 
 ## 2. GitHub release
 
-The repository is private, so its releases are visible only to people with access. For a public download, make the repository (or a separate releases repository) public, then:
+The repository is public since 0.23.0. After notarizing:
 
 ```bash
 gh release create v0.23.0 dist/syncSCP-0.23.0-macOS.zip --title "syncSCP 0.23.0" --notes-file RELEASE_NOTES.md
@@ -29,7 +29,7 @@ gh release create v0.23.0 dist/syncSCP-0.23.0-macOS.zip --title "syncSCP 0.23.0"
 
 ## 3. Homebrew
 
-`packaging/syncscp.rb` is a cask template (it also links `syncscp`). It needs a public, notarized ZIP: fill in `version` and `sha256`, then publish it in a tap such as `oguzhankrcb/homebrew-tap` (`brew install --cask oguzhankrcb/tap/syncscp`).
+The cask lives in the public tap `oguzhankrcb/homebrew-tap` as `Casks/syncscp.rb` (`brew install --cask oguzhankrcb/tap/syncscp`); `packaging/syncscp.rb` is its copy here. For each release update `version` and `sha256` (`shasum -a 256 dist/syncSCP-<version>-macOS.zip`) in both.
 
 ## 4. Automatic updates (later)
 

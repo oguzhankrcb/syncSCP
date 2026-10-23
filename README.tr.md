@@ -164,13 +164,17 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 
 ## 📥 Kurulum
 
-Henüz yayımlanmış sürüm yok. Uygulamayı kaynaktan derleyin (aşağıda) ya da `./scripts/package-release.sh` ile üretilen ZIP'i kullanın.
-
-Uygulama ad-hoc imzalıdır; Developer ID imzası ve notarization henüz yok. macOS kopyalanmış ya da indirilmiş bir derlemeyi engellerse sağ tıklayıp **Open** seçin veya şunu çalıştırın:
+**Homebrew:**
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/syncSCP.app
+brew install --cask oguzhankrcb/tap/syncscp
 ```
+
+Bu, `syncscp` komut satırı aracını da kurar.
+
+**İndirme:** [son sürümden](https://github.com/oguzhankrcb/syncSCP/releases/latest) `syncSCP-<sürüm>-macOS.zip` dosyasını indirin, açın ve `syncSCP.app`'i Uygulamalar klasörüne taşıyın. Sürümler Developer ID ile imzalı ve Apple tarafından onaylanmıştır (notarized); normal şekilde açılır.
+
+Kaynaktan da derleyebilirsiniz (aşağıda).
 
 ### Gereksinimler
 
