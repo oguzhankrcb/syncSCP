@@ -12,7 +12,7 @@ let accent = Color(red: 0.17, green: 0.42, blue: 0.85)
 /// The translation of an interface text kept in a `String` (component titles, settings tables);
 /// literals in SwiftUI views are translated by SwiftUI itself.
 /// The app's version, shown in the status bar and About (kept in step with Info.plist).
-let appVersion = "0.22.0"
+let appVersion = "0.23.0"
 
 func L(_ text: String) -> String { Bundle.main.localizedString(forKey: text, value: text, table: nil) }
 private let chrome = Color(nsColor: .windowBackgroundColor)

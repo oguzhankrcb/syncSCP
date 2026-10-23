@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.22.0-blue" alt="Version 0.22.0"/>
+  <img src="https://img.shields.io/badge/version-0.23.0-blue" alt="Version 0.23.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="Platform macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal binary"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commander workflow to the Mac: a local and a remote pane, a transfer queue, per-site Advanced settings and a built-in SSH terminal. It uses the OpenSSH and libcurl that ship with macOS, keeps its own strict host-key store, and never writes passwords to disk. No account, no subscription, no telemetry.
 
-> **Status: 0.22.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
+> **Status: 0.23.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
 
 ## ⚡ Coming from WinSCP
 
@@ -63,7 +63,7 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 | Saved passwords                      | Opt-in, macOS Keychain, optional Touch ID       | Encrypted in its config   |
 | External editors with upload on save | Yes                                             | Yes                       |
 | Synchronization                      | One- and two-way, mirror, keep up to date       | One- and two-way          |
-| Scripting / automation               | Not yet                                         | Yes                       |
+| Scripting / automation               | `syncscp` command-line tool                     | Yes (winscp.com)          |
 | Transfer resume, parallel queue      | Yes (resume over SFTP)                          | Yes                       |
 | License                              | GPL-3.0-or-later                                | GPL-3.0                   |
 
@@ -135,6 +135,10 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 - Unsaved passwords sit in Keychain only for the connection attempt; a saved one also logs the built-in terminal in
 - Everything stays on your Mac: `~/Library/Application Support/SyncSCP`
 
+### ⌨️ Automation
+
+- **`syncscp` command-line tool**, in the style of `winscp.com`: `open`, `ls`, `get`, `put`, `rm`, `mv`, `cp`, `chmod`, `synchronize` and more, from a script file, the command line or an interactive prompt; same sites and host keys as the app, exit code 0 only on success. Help ▸ Install Command Line Tool links it into PATH ([guide](docs/SCRIPTING.md))
+
 ### 🌍 Languages
 
 - English and **Turkish** interface; it follows macOS, or choose it in Settings ▸ Language. Messages from servers and the session log stay in English
@@ -197,6 +201,7 @@ open dist/syncSCP.app
 
 - `./scripts/build-app.sh --debug` makes a development build; `--universal` makes an Apple Silicon + Intel binary.
 - `./scripts/package-release.sh` builds the universal app and writes verified, versioned app and source ZIPs to `dist/`.
+- Developer ID signing, notarization, GitHub releases and the Homebrew cask are described in [docs/RELEASING.md](docs/RELEASING.md).
 - You can also open `Package.swift` in Xcode and run the `SyncSCP` scheme.
 
 ## 🧪 Testing

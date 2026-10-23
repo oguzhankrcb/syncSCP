@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.22.0-blue" alt="Sürüm 0.22.0"/>
+  <img src="https://img.shields.io/badge/version-0.23.0-blue" alt="Sürüm 0.23.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygulamasıdır (SwiftUI ve AppKit): yerel ve uzak panel, aktarım kuyruğu, site başına Advanced ayarlar ve yerleşik SSH terminali. macOS ile gelen OpenSSH ve libcurl'ü kullanır, kendi sıkı host key deposunu tutar ve parolaları hiçbir zaman diske yazmaz. Hesap, abonelik veya telemetri yok.
 
-> **Durum: 0.22.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
+> **Durum: 0.23.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
 
 ## ⚡ WinSCP'den geçenler için
 
@@ -63,7 +63,7 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 | Kayıtlı parolalar                        | İsteğe bağlı, macOS Keychain, Touch ID seçeneği | Kendi ayar dosyasında |
 | Kaydedince yükleyen harici editörler     | Var                                             | Var                 |
 | Eşitleme                                 | Tek/çift yönlü, ayna, güncel tutma              | Tek ve çift yönlü   |
-| Betik / otomasyon                        | Henüz yok                                       | Var                 |
+| Betik / otomasyon                        | `syncscp` komut satırı aracı                    | Var (winscp.com)    |
 | Aktarımı sürdürme, paralel kuyruk        | Var (SFTP'de kaldığı yerden)                    | Var                 |
 | Lisans                                   | GPL-3.0-or-later                                | GPL-3.0             |
 
@@ -135,6 +135,10 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 - Kaydedilmeyen parolalar yalnızca bağlantı denemesi süresince Keychain'de durur; kayıtlı parola yerleşik terminale de otomatik giriş yapar
 - Her şey Mac'inizde kalır: `~/Library/Application Support/SyncSCP`
 
+### ⌨️ Otomasyon
+
+- `winscp.com` tarzında **`syncscp` komut satırı aracı**: `open`, `ls`, `get`, `put`, `rm`, `mv`, `cp`, `chmod`, `synchronize` ve daha fazlası; betik dosyasından, komut satırından veya etkileşimli olarak. Uygulamayla aynı siteler ve host key'ler; yalnızca her şey başarılıysa çıkış kodu 0. Help ▸ Install Command Line Tool ile PATH'e eklenir ([kılavuz](docs/SCRIPTING.md))
+
 ### 🌍 Diller
 
 - İngilizce ve **Türkçe** arayüz; macOS dilini izler ya da Settings ▸ Dil'den seçilir. Sunuculardan gelen mesajlar ve oturum günlüğü İngilizce kalır
@@ -197,6 +201,7 @@ open dist/syncSCP.app
 
 - `./scripts/build-app.sh --debug` geliştirme derlemesi; `--universal` Apple Silicon + Intel derlemesi üretir.
 - `./scripts/package-release.sh` universal uygulamayı derler ve `dist/` altına doğrulanmış, sürüm numaralı uygulama ve kaynak ZIP'leri yazar.
+- Developer ID imzası, notarization, GitHub sürümleri ve Homebrew cask'ı [docs/RELEASING.md](docs/RELEASING.md) dosyasında anlatılıyor.
 - `Package.swift` dosyasını Xcode'da açıp `SyncSCP` şemasını da çalıştırabilirsiniz.
 
 ## 🧪 Testler

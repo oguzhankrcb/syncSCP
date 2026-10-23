@@ -162,4 +162,16 @@ final class CoreTests: XCTestCase {
         let link = FileEntry(path: "link", name: "link", permissions: 0o120777)
         XCTAssertEqual(SyncPlanner.compare(local: ["link": file("link", 1, old)], remote: ["link": link], options: SyncOptions(direction: .upload)).first?.action, .conflict)
     }
+
+    func testScriptWordsAndURLs() throws {
+        XCTAssertEqual(try ScriptSession.split(#"put "my file.txt" /srv/"a ""quoted"" name" -delete"#), ["put", "my file.txt", #"/srv/a "quoted" name"#, "-delete"])
+        XCTAssertEqual(try ScriptSession.split(#"echo """#), ["echo", ""])
+        XCTAssertThrowsError(try ScriptSession.split(#"get "open"#))
+        let parsed = try ScriptSession.parseURL("scp://deploy:s%40cret@example.com:2222/srv/www")
+        XCTAssertEqual(parsed.site.transferProtocol, .scp); XCTAssertEqual(parsed.site.username, "deploy"); XCTAssertEqual(parsed.password, "s@cret")
+        XCTAssertEqual(parsed.site.port, 2222); XCTAssertEqual(parsed.site.remotePath, "/srv/www")
+        XCTAssertEqual(try ScriptSession.parseURL("ftpes://u@ftp.example.com").site.transferProtocol, .ftpsExplicit)
+        XCTAssertEqual(try ScriptSession.parseURL("davs://u@dav.example.com/dav/").site.port, 443)
+        XCTAssertThrowsError(try ScriptSession.parseURL("gopher://x"))
+    }
 }

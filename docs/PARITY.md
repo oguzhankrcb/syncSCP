@@ -25,12 +25,12 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | Quick Open, bookmarks, Quick Look | Implemented | ⌘K palette for sites, bookmarks and commands; per-site remote and local bookmarks; Quick Look for local and remote files |
 | Sites / workspaces | Partial | JSON sites in WinSCP-style folders, with notes, colors, search, Save As and rename; import of WinSCP.ini, `reg export` and Wine/Whisky/CrossOver configurations ([IMPORT.md](IMPORT.md)); workspaces remaining |
 | Advanced Site Settings | Implemented dialog, partial effect | All upstream pages and settings round-trip; shell/SFTP server, timeouts, keepalives, IP version, SOCKS/HTTP/local proxy, SSH tunnel, TLS versions, cipher/kex policy, rekey, authentication options and S3 options are applied; the rest are badged as planned or unavailable in [SETTINGS.md](SETTINGS.md) |
-| Automation / CLI | Missing | Script parser, protocol URLs, compatible exit codes and logs |
+| Automation / CLI | Implemented subset | `syncscp-cli` with winscp.com-style open/ls/cd/get/put/rm/mv/cp/chmod/stat/synchronize/option, /script and /command, exit codes; .NET-style API, `call`, `keepuptodate` and logging options remain |
 | .NET assembly | Missing | Evaluate portable automation API and compatibility strategy |
 | PuTTY / Pageant | macOS equivalent | OpenSSH agent; PPK v2/v3 conversion including passphrase-protected keys (Argon2, verified against RFC 9106), the passphrase kept on the OpenSSH key; Pageant remains |
 | Tunnel / proxy / jump host | Partial | SSH tunnel and SOCKS4/5/HTTP/local proxies for SFTP/SCP; SOCKS/HTTP proxies for FTP/WebDAV/S3; proxy authentication, Telnet proxy and tunnels for curl protocols remain |
 | Localization / accessibility | Partial | English and Turkish interface (follows macOS or Settings ▸ Language); core error messages and the log stay English; full VoiceOver/keyboard audit remains |
-| Release distribution | Partial | Local ad-hoc signed .app; Developer ID, notarization, updates, DMG release remaining |
+| Release distribution | Prepared | Ad-hoc signed universal app; Developer ID signing and notarization script, Homebrew cask template and release steps in [RELEASING.md](RELEASING.md) wait for the maintainer's Apple account and a public release; Sparkle updates later |
 
 ## Milestones
 

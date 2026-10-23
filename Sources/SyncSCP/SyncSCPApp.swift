@@ -117,6 +117,9 @@ struct SyncSCPApp: App {
                 Divider()
                 Button("Port Forwarding…") { model.showPortForwarding = true }.keyboardShortcut("p", modifiers: [.command, .shift])
             }
+            CommandGroup(after: .help) {
+                Button("Install Command Line Tool…") { installCommandLineTool() }
+            }
             CommandGroup(replacing: .appInfo) {
                 Button("About syncSCP") {
                     NSApp.orderFrontStandardAboutPanel(options: [
@@ -173,26 +176,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-enum SessionCredential {
-    private static let service = "io.github.oguzhankrcb.syncscp.session"
-    static func store(_ secret: String) throws -> String {
-        let id = UUID().uuidString
-        let status = SecItemAdd([kSecClass: kSecClassGenericPassword, kSecAttrService: service,
-                                kSecAttrAccount: id, kSecValueData: Data(secret.utf8),
-                                kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly] as CFDictionary, nil)
-        guard status == errSecSuccess else { throw ClientError.invalid("Could not temporarily store the SSH credential in Keychain (\(status)).") }
-        return id
-    }
-    static func read(_ id: String) -> String? {
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching([kSecClass: kSecClassGenericPassword, kSecAttrService: service,
-                                         kSecAttrAccount: id, kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne] as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-    static func remove(_ id: String) -> Bool {
-        let status = SecItemDelete([kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: id] as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
+
+/// Shows (and copies) the command that links the bundled syncscp-cli into PATH as `syncscp`;
+/// it needs administrator rights, so the user runs it in Terminal.
+private func installCommandLineTool() {
+    let tool = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/syncscp-cli").path
+    let command = "sudo mkdir -p /usr/local/bin && sudo ln -sf '\(tool.replacingOccurrences(of: "'", with: "'\\''"))' /usr/local/bin/syncscp"
+    let alert = NSAlert()
+    alert.messageText = String(localized: "Install the syncscp command")
+    alert.informativeText = String(localized: "Run this in Terminal (it asks for your password), then use syncscp /help:") + "\n\n" + command
+    alert.addButton(withTitle: String(localized: "Copy Command")); alert.addButton(withTitle: String(localized: "Close"))
+    if alert.runModal() == .alertFirstButtonReturn {
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(command, forType: .string)
     }
 }
 

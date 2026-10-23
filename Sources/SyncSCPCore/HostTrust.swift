@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
 import CryptoKit
-import SyncSCPCore
 
-struct HostIdentity: Sendable {
-    var host: String
-    var algorithm: String
-    var fingerprint: String
-    var knownHostsLine: String
+public struct HostIdentity: Sendable {
+    public var host: String
+    public var algorithm: String
+    public var fingerprint: String
+    public var knownHostsLine: String
 }
 
-enum HostTrust {
-    static func lookupKey(_ site: Site) -> String { site.port == 22 ? site.host : "[\(site.host)]:\(site.port)" }
+/// First-use host-key approval: reads the key a server presents and records an approved one in the app's known_hosts.
+public enum HostTrust {
+    public static func lookupKey(_ site: Site) -> String { site.port == 22 ? site.host : "[\(site.host)]:\(site.port)" }
 
-    static func isKnown(_ site: Site, file: URL) async throws -> Bool {
+    public static func isKnown(_ site: Site, file: URL) async throws -> Bool {
         let result = try await run("/usr/bin/ssh-keygen", ["-F", lookupKey(site), "-f", file.path])
         guard result.status == 0 || result.status == 1 else { throw ClientError.connection(result.error) }
         return result.status == 0 && !result.output.isEmpty
     }
 
-    static func scan(_ site: Site, knownHostsFile: URL) async throws -> HostIdentity {
+    public static func scan(_ site: Site, knownHostsFile: URL) async throws -> HostIdentity {
         try site.validate()
         guard !site.settings.tunnel, !SSHOptions.usesProxy(site.settings, host: site.host) else {
             return try await scanThroughSSH(site, knownHostsFile: knownHostsFile)
@@ -58,7 +58,7 @@ enum HostTrust {
         }
     }
 
-    static func trust(_ identity: HostIdentity, file: URL) throws {
+    public static func trust(_ identity: HostIdentity, file: URL) throws {
         let handle = try FileHandle(forWritingTo: file)
         defer { try? handle.close() }
         try handle.seekToEnd(); try handle.write(contentsOf: Data(identity.knownHostsLine.utf8)); try handle.synchronize()

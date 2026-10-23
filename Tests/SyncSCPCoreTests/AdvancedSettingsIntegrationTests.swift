@@ -317,4 +317,74 @@ final class AdvancedSettingsIntegrationTests: XCTestCase {
             await client.disconnect()
         }
     }
+
+    /// Runs a syncscp-cli script against the fixture with its own site store; returns exit code and output.
+    private func script(_ lines: [String], store: SiteStore) async -> (Int32, String) {
+        var output: [String] = []
+        let session = ScriptSession(store: store, localPath: local.path, askpass: nil, output: { output.append($0) })
+        let code = await session.run(lines)
+        return (code, output.joined(separator: "\n"))
+    }
+
+    func testScriptCommandsAgainstARealServer() async throws {
+        let storeFolder = root.appendingPathComponent("cli-store")
+        let store = try SiteStore(directory: storeFolder)
+        try FileManager.default.removeItem(at: store.knownHostsFile)
+        try FileManager.default.copyItem(at: fixture.appendingPathComponent("known hosts"), to: store.knownHostsFile)
+        try FileManager.default.createDirectory(at: local.appendingPathComponent("tree/inner"), withIntermediateDirectories: true)
+        try Data("alpha".utf8).write(to: local.appendingPathComponent("a.txt"))
+        try Data("beta".utf8).write(to: local.appendingPathComponent("b.log"))
+        try Data("inner".utf8).write(to: local.appendingPathComponent("tree/inner/c.txt"))
+        let key = fixture.appendingPathComponent("client_key").path
+        let url = "sftp://\(NSUserName())@127.0.0.1:\(sftpPort)\(remote.path)"
+        let (code, output) = await script([
+            "option batch abort",
+            "open \(url) -privatekey=\"\(key)\"",
+            "put a.txt", "put *.log uploaded", "put tree",
+            "mkdir logs", "put b.log logs/", "put b.log",
+            "ls", "cd tree/inner", "pwd", "cd ..", "cd ..",
+            "get a.txt \"got a.txt\"", "get tree \"got tree\"",
+            "mv a.txt renamed.txt", "cp renamed.txt copy.txt", "chmod 600 copy.txt",
+            "synchronize remote \"\(local.path)/tree\" mirror -preview",
+            "synchronize remote \"\(local.path)/tree\" mirror",
+            "rm *.log", "echo done", "exit",
+        ], store: store)
+        XCTAssertEqual(code, 0, output)
+        func remoteText(_ path: String) -> String? { try? String(contentsOf: remote.appendingPathComponent(path), encoding: .utf8) }
+        XCTAssertEqual(remoteText("renamed.txt"), "alpha"); XCTAssertNil(remoteText("a.txt"))
+        XCTAssertEqual(remoteText("copy.txt"), "alpha")
+        XCTAssertEqual(((try FileManager.default.attributesOfItem(atPath: remote.appendingPathComponent("copy.txt").path))[.posixPermissions] as? Int).map { $0 & 0o777 }, 0o600)
+        XCTAssertEqual(remoteText("uploaded"), "beta", "put to a name that is not a folder writes that file")
+        XCTAssertEqual(remoteText("tree/inner/c.txt"), "inner")
+        XCTAssertEqual(remoteText("mirror/inner/c.txt"), "inner", "synchronize remote copied the tree")
+        XCTAssertNil(remoteText("b.log"), "rm with a mask")
+        XCTAssertEqual(remoteText("logs/b.log"), "beta", "put into an existing folder")
+        XCTAssertEqual(try String(contentsOf: local.appendingPathComponent("got a.txt"), encoding: .utf8), "alpha")
+        XCTAssertEqual(try String(contentsOf: local.appendingPathComponent("got tree/inner/c.txt"), encoding: .utf8), "inner")
+        XCTAssertTrue(output.contains("/tree/inner"), output)
+        XCTAssertTrue(output.contains("Create remote folder: inner") && output.contains("previewed"), output)
+        XCTAssertTrue(output.hasSuffix("done"), output)
+
+        // A failing command stops the script (batch abort) with exit code 1; with continue, later commands run.
+        let (failed, failure) = await script(["open \(url) -privatekey=\"\(key)\"", "get missing.txt", "echo after"], store: store)
+        XCTAssertEqual(failed, 1); XCTAssertFalse(failure.contains("after")); XCTAssertTrue(failure.contains("Error:"), failure)
+        let (continued, more) = await script(["option batch continue", "open \(url) -privatekey=\"\(key)\"", "get missing.txt", "echo after"], store: store)
+        XCTAssertEqual(continued, 1); XCTAssertTrue(more.contains("after"), more)
+    }
+
+    func testScriptHostKeyMustBeTrustedOrConfirmed() async throws {
+        let store = try SiteStore(directory: root.appendingPathComponent("cli-untrusted"))
+        let key = fixture.appendingPathComponent("client_key").path
+        let url = "sftp://\(NSUserName())@127.0.0.1:\(sftpPort)/"
+        let (refused, message) = await script(["open \(url) -privatekey=\"\(key)\""], store: store)
+        XCTAssertEqual(refused, 1)
+        let fingerprint = try XCTUnwrap(message.range(of: #"SHA256:[A-Za-z0-9+/]+"#, options: .regularExpression).map { String(message[$0]) }, message)
+        let (wrong, mismatch) = await script(["open \(url) -privatekey=\"\(key)\" -hostkey=SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"], store: store)
+        XCTAssertEqual(wrong, 1); XCTAssertTrue(mismatch.contains("mismatch"), mismatch)
+        let (accepted, trusted) = await script(["open \(url) -privatekey=\"\(key)\" -hostkey=\(fingerprint)", "pwd"], store: store)
+        XCTAssertEqual(accepted, 0, trusted)
+        XCTAssertTrue(try String(contentsOf: store.knownHostsFile, encoding: .utf8).contains("[127.0.0.1]:\(sftpPort)"))
+        let (again, _) = await script(["open \(url) -privatekey=\"\(key)\"", "pwd"], store: store)
+        XCTAssertEqual(again, 0, "the confirmed key is remembered")
+    }
 }

@@ -14,16 +14,20 @@ done
 # One architecture per build, merged with lipo: SwiftPM's multi-arch (Xcode) build system
 # cannot build SwiftTerm's build-tool plugin.
 BINARIES=()
+TOOLS=()
 for arch in "${BUILD_ARCHES[@]}"; do
     "$TASK_ROOT/scripts/swift.sh" build -c "$BUILD_MODE" --arch "$arch"
     BINARY_DIR="$("$TASK_ROOT/scripts/swift.sh" build -c "$BUILD_MODE" --arch "$arch" --show-bin-path)"
     BINARIES+=("$BINARY_DIR/SyncSCP")
+    TOOLS+=("$BINARY_DIR/syncscp-cli")
 done
 APP_BUNDLE="$TASK_ROOT/dist/syncSCP.app"
 # Start from an empty bundle so files removed from the project never linger in a release.
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 lipo -create "${BINARIES[@]}" -output "$APP_BUNDLE/Contents/MacOS/SyncSCP"
+# The scripting tool (winscp.com's counterpart); Help ▸ Install Command Line Tool links it into PATH.
+lipo -create "${TOOLS[@]}" -output "$APP_BUNDLE/Contents/MacOS/syncscp-cli"
 cp "$TASK_ROOT/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 # Interface translations (English keys; Turkish in tr.lproj).
 cp -R "$TASK_ROOT/Resources/en.lproj" "$TASK_ROOT/Resources/tr.lproj" "$APP_BUNDLE/Contents/Resources/"
@@ -37,6 +41,8 @@ rm -rf "$APP_BUNDLE/Contents/Resources/docs/screenshots" # README images are not
 export CLANG_MODULE_CACHE_PATH="$TASK_ROOT/.build/clang-cache"
 xcrun swift "$TASK_ROOT/scripts/draw-icon.swift" "$TASK_ROOT/.build/AppIcon.iconset"
 iconutil -c icns "$TASK_ROOT/.build/AppIcon.iconset" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+# Nested code is signed before the bundle (lipo output carries no signature).
+codesign --force --sign - "$APP_BUNDLE/Contents/MacOS/syncscp-cli"
 codesign --force --sign - "$APP_BUNDLE"
 codesign --verify --strict "$APP_BUNDLE"
 echo "Built: $APP_BUNDLE"

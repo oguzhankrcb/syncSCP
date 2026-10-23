@@ -535,3 +535,7 @@
 "Tunnel" = "Tünel";
 "Waiting" = "Bekliyor";
 "— warn below here —" = "— bunun altı için uyar —";
+"Copy Command" = "Komutu Kopyala";
+"Install Command Line Tool…" = "Komut Satırı Aracını Kur…";
+"Install the syncscp command" = "syncscp komutunu kur";
+"Run this in Terminal (it asks for your password), then use syncscp /help:" = "Bunu Terminal'de çalıştırın (parolanızı sorar), sonra syncscp /help kullanın:";

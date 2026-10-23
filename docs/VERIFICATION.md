@@ -1,5 +1,15 @@
 # Verification record
 
+## 0.23.0 — syncscp-cli scripting and release preparation
+
+Verified locally on 2026-10-23. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **137 XCTest cases, zero failures, zero skips**.
+
+- New unit test: script words (quotes, doubled quotes, unclosed quote) and URLs (scheme to protocol, user, percent-encoded password, port, path).
+- New integration tests against the SFTP daemon through `ScriptSession`: put (file, mask, folder, into a folder), ls, cd, pwd, get (file, folder), mv, cp, chmod, synchronize remote with -preview and for real into a folder that did not exist, rm with a mask, echo; batch abort stops with exit code 1 and continue runs on. An unknown host key stops `open` and prints the fingerprint; a wrong `-hostkey` is refused; the right one is accepted and remembered.
+- The built `syncscp-cli` binary was run against the SFTP daemon with `/command` and `/script`: it refused the unknown key with exit code 1, accepted it with `-hostkey`, listed, uploaded, listed by mask and deleted.
+- `HostTrust` and `SessionCredential` moved into the core so the tool shares them with the app.
+- `./scripts/notarize.sh --dry-run` printed the signing, notarization and stapling steps; `bash -n` and `ruby -c` accept the script and the Homebrew cask. **Not run:** real Developer ID signing and notarization (no certificate here), and password logins through the tool's askpass (the test daemons use keys).
+
 ## 0.22.0 — Turkish interface
 
 Verified locally on 2026-10-23. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **134 XCTest cases, zero failures, zero skips** (no core change).
