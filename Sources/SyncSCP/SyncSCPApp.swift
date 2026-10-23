@@ -121,7 +121,7 @@ struct SyncSCPApp: App {
                 Button("About syncSCP") {
                     NSApp.orderFrontStandardAboutPanel(options: [
                         .applicationName: "syncSCP",
-                        .applicationVersion: "0.21.0 — Development Preview",
+                        .applicationVersion: "\(appVersion) — " + String(localized: "Development Preview"),
                         .credits: NSAttributedString(string: "An independent macOS file manager inspired by WinSCP's workflows; not affiliated with the WinSCP project.\nWinSCP is by Martin Prikryl and contributors.\nGPL v3 or later. No warranty. See bundled LICENSE.txt and README.md.")
                     ])
                 }
@@ -146,17 +146,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if let model = model, model.pendingCount > 0 {
             let alert = NSAlert(); alert.alertStyle = .warning
-            alert.messageText = "Quit while \(model.pendingCount) transfer(s) are running or waiting?"
-            alert.informativeText = "They stop now and may leave hidden .syncscp-….filepart files; start them again later."
-            alert.addButton(withTitle: "Quit"); alert.addButton(withTitle: "Cancel")
+            alert.messageText = String(localized: "Quit while \(model.pendingCount) transfer(s) are running or waiting?")
+            alert.informativeText = String(localized: "They stop now and may leave hidden .syncscp-….filepart files; start them again later.")
+            alert.addButton(withTitle: String(localized: "Quit")); alert.addButton(withTitle: String(localized: "Cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
         }
         // ⌘Q in a terminal usually means "close this terminal"; quitting stays one click away.
         if let terminal = TerminalWindowController.controller(of: NSApp.keyWindow) {
             let alert = NSAlert()
-            alert.messageText = "Close this terminal, or quit syncSCP?"
-            alert.informativeText = "Closing the terminal ends only its SSH session. Quitting closes every window and ends all sessions."
-            alert.addButton(withTitle: "Close Terminal"); alert.addButton(withTitle: "Quit syncSCP"); alert.addButton(withTitle: "Cancel")
+            alert.messageText = String(localized: "Close this terminal, or quit syncSCP?")
+            alert.informativeText = String(localized: "Closing the terminal ends only its SSH session. Quitting closes every window and ends all sessions.")
+            alert.addButton(withTitle: String(localized: "Close Terminal")); alert.addButton(withTitle: String(localized: "Quit syncSCP")); alert.addButton(withTitle: String(localized: "Cancel"))
             switch alert.runModal() {
             case .alertFirstButtonReturn: terminal.closeWithoutConfirmation(); return .terminateCancel
             case .alertSecondButtonReturn: return .terminateNow
@@ -167,8 +167,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard count > 0 else { return .terminateNow }
         let alert = NSAlert()
         alert.messageText = count == 1 ? "Quit with an open terminal?" : "Quit with \(count) open terminals?"
-        alert.informativeText = "Their SSH sessions will end, along with anything running in them."
-        alert.addButton(withTitle: "Quit"); alert.addButton(withTitle: "Cancel")
+        alert.informativeText = String(localized: "Their SSH sessions will end, along with anything running in them.")
+        alert.addButton(withTitle: String(localized: "Quit")); alert.addButton(withTitle: String(localized: "Cancel"))
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 }

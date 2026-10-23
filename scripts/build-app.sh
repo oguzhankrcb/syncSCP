@@ -25,6 +25,8 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 lipo -create "${BINARIES[@]}" -output "$APP_BUNDLE/Contents/MacOS/SyncSCP"
 cp "$TASK_ROOT/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+# Interface translations (English keys; Turkish in tr.lproj).
+cp -R "$TASK_ROOT/Resources/en.lproj" "$TASK_ROOT/Resources/tr.lproj" "$APP_BUNDLE/Contents/Resources/"
 cp "$TASK_ROOT/LICENSE" "$APP_BUNDLE/Contents/Resources/LICENSE.txt"
 # SwiftTerm (MIT): its license, and its resource bundle where Bundle lookups find it.
 cp "$TASK_ROOT/.build/checkouts/SwiftTerm/LICENSE" "$APP_BUNDLE/Contents/Resources/SwiftTerm-LICENSE.txt"

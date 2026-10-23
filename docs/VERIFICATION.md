@@ -1,5 +1,13 @@
 # Verification record
 
+## 0.22.0 — Turkish interface
+
+Verified locally on 2026-10-23. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **134 XCTest cases, zero failures, zero skips** (no core change).
+
+- `scripts/check-localization.py` collects every interface text (the compiler's `-emit-localized-strings` output plus texts that components receive as `String`) and reports 0 of 585 keys without a Turkish translation; `plutil -lint` accepts the strings file, and every translation keeps its key's format specifiers.
+- The main window, Settings, Advanced Site Settings (SSH page) and Synchronize were rendered with `-AppleLanguages (tr)` and an empty data store: toolbar, panes, column headers, file kinds, queue tabs, footers, settings tree and badges, synchronization directions and actions were Turkish.
+- **Not tried by me:** the menu bar and every alert in the running app in Turkish, and the Settings ▸ Language restart. Error messages from the core and the session log stay English.
+
 ## 0.21.0 — Quick Open, bookmarks, Quick Look, SSH config import, protected PuTTY keys
 
 Verified locally on 2026-10-22. `./scripts/test-ssh.sh --all` and `./scripts/test-ssh.sh --all -c release` each completed **134 XCTest cases, zero failures, zero skips**.

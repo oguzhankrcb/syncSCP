@@ -210,9 +210,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         guard panes.count > 1, let pane = focusedPane else { window?.performClose(sender); return }
         if pane.running {
             let alert = NSAlert()
-            alert.messageText = "Close this pane?"
-            alert.informativeText = "Its SSH session to \(label) will end."
-            alert.addButton(withTitle: "Close"); alert.addButton(withTitle: "Cancel")
+            alert.messageText = String(localized: "Close this pane?")
+            alert.informativeText = String(localized: "Its SSH session to \(label) will end.")
+            alert.addButton(withTitle: String(localized: "Close")); alert.addButton(withTitle: String(localized: "Cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
         }
         pane.stop()
@@ -238,8 +238,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         guard running > 0 else { return true }
         let alert = NSAlert()
         alert.messageText = running == 1 ? "Close this terminal?" : "Close \(running) terminal sessions?"
-        alert.informativeText = "The SSH session to \(label) will end, along with anything running in it."
-        alert.addButton(withTitle: "Close"); alert.addButton(withTitle: "Cancel")
+        alert.informativeText = String(localized: "The SSH session to \(label) will end, along with anything running in it.")
+        alert.addButton(withTitle: String(localized: "Close")); alert.addButton(withTitle: String(localized: "Cancel"))
         return alert.runModal() == .alertFirstButtonReturn
     }
 

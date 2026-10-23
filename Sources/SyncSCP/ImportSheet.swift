@@ -132,7 +132,7 @@ struct ImportSheet: View {
                 Section {
                     Toggle("Save \(withPasswords.count) saved password\(withPasswords.count == 1 ? "" : "s") in my Keychain", isOn: $savePasswords)
                     let updates = existingWithPasswords(result).count
-                    Text("Passwords go to the macOS Keychain on this Mac, never into site files\(updates > 0 ? "; \(updates) of them also update sites already in syncSCP" : ""). Otherwise you type them at login.")
+                    Text(updates > 0 ? "Passwords go to the macOS Keychain on this Mac, never into site files; \(updates) of them also update sites already in syncSCP. Otherwise you type them at login." : "Passwords go to the macOS Keychain on this Mac, never into site files. Otherwise you type them at login.")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 } header: { Text("Passwords") }
             }
@@ -171,7 +171,7 @@ struct ImportSheet: View {
 
     private func choose() {
         let panel = NSOpenPanel(); panel.canChooseFiles = true; panel.canChooseDirectories = false; panel.showsHiddenFiles = true
-        panel.message = "Choose WinSCP.ini, a .reg export, or a Wine user.reg"
+        panel.message = String(localized: "Choose WinSCP.ini, a .reg export, or a Wine user.reg")
         if panel.runModal() == .OK, let url = panel.url { load(url) }
     }
 

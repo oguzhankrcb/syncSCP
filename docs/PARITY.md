@@ -29,7 +29,7 @@ Target: preserve WinSCP's file-management and transfer workflows with macOS equi
 | .NET assembly | Missing | Evaluate portable automation API and compatibility strategy |
 | PuTTY / Pageant | macOS equivalent | OpenSSH agent; PPK v2/v3 conversion including passphrase-protected keys (Argon2, verified against RFC 9106), the passphrase kept on the OpenSSH key; Pageant remains |
 | Tunnel / proxy / jump host | Partial | SSH tunnel and SOCKS4/5/HTTP/local proxies for SFTP/SCP; SOCKS/HTTP proxies for FTP/WebDAV/S3; proxy authentication, Telnet proxy and tunnels for curl protocols remain |
-| Localization / accessibility | Partial | English UI with native controls; localization, full VoiceOver/keyboard audit |
+| Localization / accessibility | Partial | English and Turkish interface (follows macOS or Settings ▸ Language); core error messages and the log stay English; full VoiceOver/keyboard audit remains |
 | Release distribution | Partial | Local ad-hoc signed .app; Developer ID, notarization, updates, DMG release remaining |
 
 ## Milestones

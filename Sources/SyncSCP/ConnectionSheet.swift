@@ -142,7 +142,7 @@ struct ConnectionSheet: View {
                 }
                 labeled("Encryption") {
                     Picker("Encryption", selection: Binding(get: { site.transferProtocol }, set: { setProtocol($0) })) {
-                        ForEach(ProtocolFamily(site.transferProtocol).variants, id: \.0) { Text($0.1).tag($0.0) }
+                        ForEach(ProtocolFamily(site.transferProtocol).variants, id: \.0) { Text(L($0.1)).tag($0.0) }
                     }.labelsHidden().disabled(site.transferProtocol.usesSSH)
                 }
             }
@@ -158,11 +158,11 @@ struct ConnectionSheet: View {
                 }
             }
             HStack(spacing: 10) {
-                Toggle(hasSavedPassword ? "Save the typed \(s3 ? "key" : "password") instead" : "Save \(s3 ? "secret key" : "password") in Keychain", isOn: $savePassword)
+                Toggle(hasSavedPassword ? (s3 ? "Save the typed key instead" : "Save the typed password instead") : (s3 ? "Save secret key in Keychain" : "Save password in Keychain"), isOn: $savePassword)
                     .toggleStyle(.checkbox).disabled(!isSaved)
                     .help(isSaved ? "Stored in your macOS Keychain after a successful login, never in the site file." : "Save the site first.")
                 if hasSavedPassword {
-                    Label("Saved \(s3 ? "key" : "password") will be used", systemImage: "key.fill").foregroundStyle(.secondary)
+                    Label(s3 ? "Saved key will be used" : "Saved password will be used", systemImage: "key.fill").foregroundStyle(.secondary)
                     Button("Forget") { model.forgetPassword(site.id) }.buttonStyle(.link)
                 }
             }.font(.system(size: 11.5))
@@ -194,7 +194,7 @@ struct ConnectionSheet: View {
 
     private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(.system(size: 12)).foregroundStyle(.secondary)
+            Text(L(title)).font(.system(size: 12)).foregroundStyle(.secondary)
             content()
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -211,11 +211,11 @@ struct ConnectionSheet: View {
     private func save(asNew: Bool) {
         let alert = NSAlert()
         alert.messageText = asNew ? "Save session as site" : "Save site"
-        alert.informativeText = "Use Folder/Name to group sites. Passwords are saved only with Save password, in your Keychain."
+        alert.informativeText = String(localized: "Use Folder/Name to group sites. Passwords are saved only with Save password, in your Keychain.")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
         field.stringValue = site.name.isEmpty ? "\(site.username)@\(site.host)" : site.name
         alert.accessoryView = field
-        alert.addButton(withTitle: "OK"); alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "OK")); alert.addButton(withTitle: String(localized: "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let name = field.stringValue.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
@@ -228,10 +228,10 @@ struct ConnectionSheet: View {
 
     private func renameSelected() {
         guard let id = selectedSite, var saved = model.sites.first(where: { $0.id == id }) else { return }
-        let alert = NSAlert(); alert.messageText = "Rename site"
+        let alert = NSAlert(); alert.messageText = String(localized: "Rename site")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24)); field.stringValue = saved.displayName
         alert.accessoryView = field
-        alert.addButton(withTitle: "Rename"); alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Rename")); alert.addButton(withTitle: String(localized: "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn, !field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         saved.name = field.stringValue.trimmingCharacters(in: .whitespaces)
         model.saveSite(saved); site.name = saved.name
@@ -239,14 +239,14 @@ struct ConnectionSheet: View {
 
     /// Converts a .ppk into an OpenSSH key in the app's keys folder and uses it for this site.
     private func convertKey() {
-        let panel = NSOpenPanel(); panel.allowedContentTypes = []; panel.allowsOtherFileTypes = true; panel.message = "Choose a PuTTY private key (.ppk)"
+        let panel = NSOpenPanel(); panel.allowedContentTypes = []; panel.allowsOtherFileTypes = true; panel.message = String(localized: "Choose a PuTTY private key (.ppk)")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         var passphrase: String?
         if let text = try? String(contentsOf: url, encoding: .utf8), PuTTYKey.isEncrypted(text) {
-            let alert = NSAlert(); alert.messageText = "Passphrase for \(url.lastPathComponent)"
-            alert.informativeText = "The converted OpenSSH key keeps this passphrase."
+            let alert = NSAlert(); alert.messageText = String(localized: "Passphrase for \(url.lastPathComponent)")
+            alert.informativeText = String(localized: "The converted OpenSSH key keeps this passphrase.")
             let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24)); alert.accessoryView = field
-            alert.addButton(withTitle: "Convert"); alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: String(localized: "Convert")); alert.addButton(withTitle: String(localized: "Cancel"))
             alert.window.initialFirstResponder = field
             guard alert.runModal() == .alertFirstButtonReturn else { return }
             passphrase = field.stringValue
@@ -312,8 +312,8 @@ struct EditorSheet: View {
                 Spacer()
                 Button("Close") {
                     if text != document.text {
-                        let alert = NSAlert(); alert.messageText = "Discard unsaved changes?"
-                        alert.addButton(withTitle: "Discard"); alert.addButton(withTitle: "Keep Editing")
+                        let alert = NSAlert(); alert.messageText = String(localized: "Discard unsaved changes?")
+                        alert.addButton(withTitle: String(localized: "Discard")); alert.addButton(withTitle: String(localized: "Keep Editing"))
                         guard alert.runModal() == .alertFirstButtonReturn else { return }
                     }
                     dismiss()
@@ -340,7 +340,7 @@ struct SynchronizationSheet: View {
             Label("Synchronize", systemImage: "arrow.triangle.2.circlepath").font(.title3.weight(.semibold))
             Text("\(model.localPath)  ⇄  \(model.remotePath)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             HStack(spacing: 16) {
-                Picker("Direction", selection: $model.syncOptions.direction) { ForEach(SyncDirection.allCases) { Text($0.rawValue).tag($0) } }
+                Picker("Direction", selection: $model.syncOptions.direction) { ForEach(SyncDirection.allCases) { Text(L($0.rawValue)).tag($0) } }
                     .pickerStyle(.segmented).frame(width: 360)
                 Toggle("Newer files only", isOn: $model.syncOptions.newerOnly).disabled(model.syncOptions.direction == .both)
                     .help("Copy a file only when the source is newer than the destination")
@@ -355,13 +355,13 @@ struct SynchronizationSheet: View {
             }.font(.system(size: 12))
             Table(model.syncItems) {
                 TableColumn("Action") { item in
-                    Text(item.action.rawValue).foregroundStyle(item.action == .conflict ? Color.orange : item.action == .deleteRemote || item.action == .deleteLocal ? Color.red : Color.primary)
+                    Text(L(item.action.rawValue)).foregroundStyle(item.action == .conflict ? Color.orange : item.action == .deleteRemote || item.action == .deleteLocal ? Color.red : Color.primary)
                 }.width(150)
                 TableColumn("Relative path") { item in Text(item.relativePath).help(item.reason) }
                 TableColumn("Note") { item in Text(item.action == .conflict ? item.reason : item.replacesFile ? "Replaces existing" : "").foregroundStyle(.secondary) }.width(220)
             }.frame(height: 300)
-            if conflicts > 0 { Text("\(conflicts) conflict\(conflicts == 1 ? " is" : "s are") skipped; resolve them by hand or synchronize one way.").font(.system(size: 11)).foregroundStyle(.orange) }
-            if deletions > 0 { Text("\(deletions) item\(deletions == 1 ? "" : "s") will be deleted\(model.syncOptions.direction == .download ? " (moved to the Trash)" : " from the server; this cannot be undone").").font(.system(size: 11)).foregroundStyle(.red) }
+            if conflicts > 0 { Text("\(conflicts) conflict(s) skipped; resolve them by hand or synchronize one way.").font(.system(size: 11)).foregroundStyle(.orange) }
+            if deletions > 0 { Text(model.syncOptions.direction == .download ? "\(deletions) local item(s) will be moved to the Trash." : "\(deletions) item(s) will be deleted from the server; this cannot be undone.").font(.system(size: 11)).foregroundStyle(.red) }
             HStack {
                 Text(model.busy ? "Comparing…" : "\(actionable) change\(actionable == 1 ? "" : "s")").font(.system(size: 11)).foregroundStyle(.secondary)
                 Spacer()

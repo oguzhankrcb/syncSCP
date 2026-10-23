@@ -8,6 +8,13 @@ import SyncSCPCore
 /// WinSCP's Commander layout with a native macOS finish: toolbar, session tab, two panes
 /// with their own navigation and action bars, a queue/log panel and a status bar.
 let accent = Color(red: 0.17, green: 0.42, blue: 0.85)
+
+/// The translation of an interface text kept in a `String` (component titles, settings tables);
+/// literals in SwiftUI views are translated by SwiftUI itself.
+/// The app's version, shown in the status bar and About (kept in step with Info.plist).
+let appVersion = "0.22.0"
+
+func L(_ text: String) -> String { Bundle.main.localizedString(forKey: text, value: text, table: nil) }
 private let chrome = Color(nsColor: .windowBackgroundColor)
 private let surface = Color(nsColor: .controlBackgroundColor)
 private let barShade = Color.primary.opacity(0.035)
@@ -149,7 +156,7 @@ struct CommanderView: View {
                     Text("Connected " + duration(context.date.timeIntervalSince(start))).monospacedDigit()
                 }
             }
-            Text("Development preview · 0.21.0").foregroundStyle(.tertiary)
+            Text("Development preview · \(appVersion)").foregroundStyle(.tertiary)
         }
         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
         .padding(.horizontal, 14).frame(height: 26).background(barShade)
@@ -217,7 +224,7 @@ struct ToolButton: View {
     let action: () -> Void
     var body: some View {
         Button(role: role, action: action) {
-            Label(title, systemImage: icon).labelStyle(.titleAndIcon)
+            Label(L(title), systemImage: icon).labelStyle(.titleAndIcon)
         }
         .buttonStyle(.borderless).font(.system(size: 12)).padding(.horizontal, 8).frame(height: 26)
         .foregroundStyle(role == .destructive ? Color.red : Color.primary)
@@ -234,7 +241,7 @@ private struct IconButton: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) { Image(systemName: icon).font(.system(size: 12, weight: .medium)).frame(width: 24, height: 22) }
-            .buttonStyle(.borderless).help(label).accessibilityLabel(label)
+            .buttonStyle(.borderless).help(L(label)).accessibilityLabel(L(label))
     }
 }
 
@@ -268,7 +275,7 @@ struct QueuePanel: View {
     private func tab(_ value: BottomTab, title: String, count: Int) -> some View {
         Button { model.bottomTab = value } label: {
             HStack(spacing: 5) {
-                Text(title)
+                Text(L(title))
                 if count > 0 {
                     Text("\(count)").font(.system(size: 10, weight: .semibold)).padding(.horizontal, 6).padding(.vertical, 1)
                         .background(accent.opacity(0.14), in: Capsule())
@@ -298,7 +305,7 @@ struct QueuePanel: View {
                                 .frame(maxWidth: .infinity, alignment: .leading).help(job.destination)
                             ProgressView(value: job.state == .done ? 1 : job.fraction).frame(width: 180)
                                 .opacity(job.state == .running || job.state == .done ? 1 : 0.35)
-                            Text(job.state == .running ? "\(Int(job.fraction * 100))%" : job.state.rawValue)
+                            Text(job.state == .running ? "\(Int(job.fraction * 100))%" : L(job.state.rawValue))
                                 .monospacedDigit().foregroundStyle(job.state == .failed ? .red : job.state == .done ? .green : .secondary)
                                 .frame(width: 90, alignment: .trailing).help(job.detail)
                             if job.state == .running || job.state == .waiting {
@@ -748,7 +755,7 @@ enum EditorApps {
     static func name(_ url: URL) -> String { FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "") }
     static func chooseApplication() -> URL? {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.application]; panel.canChooseDirectories = false
-        panel.directoryURL = URL(fileURLWithPath: "/Applications"); panel.message = "Choose an application to edit with"
+        panel.directoryURL = URL(fileURLWithPath: "/Applications"); panel.message = String(localized: "Choose an application to edit with")
         return panel.runModal() == .OK ? panel.url : nil
     }
 }
@@ -778,11 +785,11 @@ enum FileType {
     }
     /// Finder-style kind ("Folder", "Plain Text Document", "ZIP archive"…), falling back to "EXT file".
     static func describe(_ entry: FileEntry) -> String {
-        if entry.isDirectory { return "Folder" }
-        if entry.isSymbolicLink { return "Symbolic link" }
+        if entry.isDirectory { return L("Folder") }
+        if entry.isSymbolicLink { return L("Symbolic link") }
         let ext = (entry.name as NSString).pathExtension
-        guard !ext.isEmpty, !entry.name.hasPrefix(".") || entry.name.dropFirst().contains(".") else { return "File" }
+        guard !ext.isEmpty, !entry.name.hasPrefix(".") || entry.name.dropFirst().contains(".") else { return L("File") }
         if let type = UTType(filenameExtension: ext), !type.isDynamic, let description = type.localizedDescription { return description }
-        return ext.uppercased() + " file"
+        return String(format: L("%@ file"), ext.uppercased())
     }
 }

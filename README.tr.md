@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.21.0-blue" alt="Sürüm 0.21.0"/>
+  <img src="https://img.shields.io/badge/version-0.22.0-blue" alt="Sürüm 0.22.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygulamasıdır (SwiftUI ve AppKit): yerel ve uzak panel, aktarım kuyruğu, site başına Advanced ayarlar ve yerleşik SSH terminali. macOS ile gelen OpenSSH ve libcurl'ü kullanır, kendi sıkı host key deposunu tutar ve parolaları hiçbir zaman diske yazmaz. Hesap, abonelik veya telemetri yok.
 
-> **Durum: 0.21.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
+> **Durum: 0.22.0 geliştirme önizlemesi.** syncSCP bağımsız bir projedir; eski adı "WinSCP for macOS" idi. WinSCP ile bağlantısı yoktur, WinSCP tarafından desteklenmez ve WinSCP'nin Windows kodunu derlemez; iş akışlarını yeniden uygular. Özellik eşitliğine ilerleme [özellik tablosunda](docs/PARITY.md) izlenir.
 
 ## ⚡ WinSCP'den geçenler için
 
@@ -134,6 +134,10 @@ syncSCP, WinSCP'nin Commander iş akışını Mac'e getiren yerel bir macOS uygu
 - **Save password** isteğe bağlı ve site başınadır; parola yalnızca bu Mac'teki macOS Keychain'de tutulur, site dosyalarına asla yazılmaz. Settings'ten kayıtlı parola kullanılmadan önce Touch ID ya da Mac parolası istenebilir
 - Kaydedilmeyen parolalar yalnızca bağlantı denemesi süresince Keychain'de durur; kayıtlı parola yerleşik terminale de otomatik giriş yapar
 - Her şey Mac'inizde kalır: `~/Library/Application Support/SyncSCP`
+
+### 🌍 Diller
+
+- İngilizce ve **Türkçe** arayüz; macOS dilini izler ya da Settings ▸ Dil'den seçilir. Sunuculardan gelen mesajlar ve oturum günlüğü İngilizce kalır
 
 ## 📸 Ekran görüntüleri
 

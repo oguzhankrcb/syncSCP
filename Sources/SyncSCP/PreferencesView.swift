@@ -8,6 +8,9 @@ struct PreferencesView: View {
     @AppStorage(CommanderModel.externalEditorKey) private var editor = ""
     @AppStorage(SavedPasswords.requireAuthenticationKey) private var requireAuthentication = false
     @AppStorage(CommanderModel.maxTransfersKey) private var maxTransfers = 2
+    /// "" follows macOS (System Settings ▸ Language & Region); otherwise this app's language.
+    @State private var language = ((UserDefaults.standard.persistentDomain(forName: Bundle.main.bundleIdentifier ?? "")?["AppleLanguages"] as? [String])?.first) ?? ""
+    @State private var languageChanged = false
     @AppStorage(CommanderModel.retriesKey) private var retries = 3
     @AppStorage(TerminalWindowController.fontFamilyKey) private var terminalFont = ""
     @AppStorage(TerminalWindowController.fontSizeKey) private var terminalFontSize = 13.0
@@ -16,6 +19,25 @@ struct PreferencesView: View {
 
     var body: some View {
         Form {
+            Section {
+                Picker("Language", selection: $language) {
+                    Text("Same as macOS").tag("")
+                    Text(verbatim: "English").tag("en")
+                    Text(verbatim: "Türkçe").tag("tr")
+                }
+                .onChange(of: language) { value in
+                    if value.isEmpty { UserDefaults.standard.removeObject(forKey: "AppleLanguages") }
+                    else { UserDefaults.standard.set([value], forKey: "AppleLanguages") }
+                    languageChanged = true
+                }
+                if languageChanged {
+                    HStack {
+                        Text("The new language is used after syncSCP restarts.").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Restart Now") { Self.relaunch() }
+                    }
+                }
+            } header: { Text("Language") }
             Section {
                 LabeledContent("Edit (F4) opens remote files in") {
                     HStack {
@@ -74,11 +96,19 @@ struct PreferencesView: View {
         .formStyle(.grouped).frame(width: 620, height: 640).padding(.vertical, 8)
     }
 
+    /// Opens a new copy of the app, then quits this one (the usual quit checks still apply).
+    static func relaunch() {
+        let configuration = NSWorkspace.OpenConfiguration(); configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+        }
+    }
+
     private func forgetAll() {
         let alert = NSAlert(); alert.alertStyle = .warning
-        alert.messageText = "Forget \(model.sitesWithPasswords.count) saved password(s)?"
-        alert.informativeText = "They are removed from your Keychain. You will type them at the next login."
-        alert.addButton(withTitle: "Forget All"); alert.addButton(withTitle: "Cancel")
+        alert.messageText = String(localized: "Forget \(model.sitesWithPasswords.count) saved password(s)?")
+        alert.informativeText = String(localized: "They are removed from your Keychain. You will type them at the next login.")
+        alert.addButton(withTitle: String(localized: "Forget All")); alert.addButton(withTitle: String(localized: "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         for site in model.sitesWithPasswords { model.forgetPassword(site) }
     }

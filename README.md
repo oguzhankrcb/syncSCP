@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.21.0-blue" alt="Version 0.21.0"/>
+  <img src="https://img.shields.io/badge/version-0.22.0-blue" alt="Version 0.22.0"/>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey?logo=apple" alt="Platform macOS 13+"/>
   <img src="https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-universal-informational" alt="Universal binary"/>
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.9+"/>
@@ -46,7 +46,7 @@
 
 syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commander workflow to the Mac: a local and a remote pane, a transfer queue, per-site Advanced settings and a built-in SSH terminal. It uses the OpenSSH and libcurl that ship with macOS, keeps its own strict host-key store, and never writes passwords to disk. No account, no subscription, no telemetry.
 
-> **Status: 0.21.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
+> **Status: 0.22.0 development preview.** syncSCP is an independent project, previously called "WinSCP for macOS". It is not affiliated with or endorsed by WinSCP and does not compile WinSCP's Windows code; it reimplements its workflows. Progress toward feature parity is tracked in the [parity matrix](docs/PARITY.md).
 
 ## ⚡ Coming from WinSCP
 
@@ -134,6 +134,10 @@ syncSCP is a native macOS app (SwiftUI and AppKit) that brings WinSCP's Commande
 - **Save password** is opt-in, per site, in your macOS Keychain on this Mac only; site files never contain passwords. Settings can require Touch ID or your Mac password before a saved password is used
 - Unsaved passwords sit in Keychain only for the connection attempt; a saved one also logs the built-in terminal in
 - Everything stays on your Mac: `~/Library/Application Support/SyncSCP`
+
+### 🌍 Languages
+
+- English and **Turkish** interface; it follows macOS, or choose it in Settings ▸ Language. Messages from servers and the session log stay in English
 
 ## 📸 Screenshots
 

@@ -110,7 +110,7 @@ final class CommanderModel: ObservableObject {
     @Published var jobs: [TransferJob] = []
     @Published var log: [LogLine] = []
     @Published var error: String?
-    @Published var status = "Ready"
+    @Published var status = String(localized: "Ready")
     @Published var editor: RemoteDocument?
     @Published var syncItems: [SyncItem] = []
     @Published var showSync = false
@@ -169,7 +169,7 @@ final class CommanderModel: ObservableObject {
         catch { self.error = error.localizedDescription }
         if custom == nil { refreshSavedPasswords() }
         refreshLocal()
-        appendLog("syncSCP 0.21.0 · Community development preview")
+        appendLog("syncSCP \(appVersion) · Community development preview")
     }
 
     /// Carries preferences over from the bundle identifier used before the rename to syncSCP.
@@ -186,7 +186,7 @@ final class CommanderModel: ObservableObject {
     }
 
     func report(_ failure: Error) {
-        error = failure.localizedDescription; status = "Operation failed"
+        error = failure.localizedDescription; status = String(localized: "Operation failed")
         appendLog(failure.localizedDescription, error: true)
         if case ClientError.connection = failure, let activeTabID { closeFailedConnection(activeTabID) }
     }
@@ -212,7 +212,7 @@ final class CommanderModel: ObservableObject {
         remoteHome = tab.remoteHome; connectedAt = tab.connectedAt; connected = true
         for side in [PaneSide.local, .remote] { backHistory[side] = tab.history[side]?.back ?? []; forwardHistory[side] = tab.history[side]?.forward ?? [] }
         if localPath != tab.localPath, FileManager.default.fileExists(atPath: tab.localPath) { localPath = tab.localPath; refreshLocal() }
-        status = "Connected to \(tab.site.host)"
+        status = String(localized: "Connected to \(tab.site.host)")
     }
 
     private func showNoSession() {
@@ -252,7 +252,7 @@ final class CommanderModel: ObservableObject {
             if let next = tabs.indices.contains(index) ? tabs[index] : tabs.last { show(next) } else { showNoSession() }
         }
         appendLog("\(tab.site.displayName): \(message)")
-        if tabs.isEmpty { status = "Disconnected" }
+        if tabs.isEmpty { status = String(localized: "Disconnected") }
         if keepUpToDate?.session == id { stopKeepingUpToDate() }
         let idle = idleTransferConnections.removeValue(forKey: id) ?? []
         Task { await tab.client.disconnect(); for connection in idle { await connection.disconnect() } }
@@ -283,7 +283,7 @@ final class CommanderModel: ObservableObject {
             connect(site: site, password: password, sessionToken: sessionToken, savePassword: savePassword); return
         }
         Task {
-            guard await SavedPasswords.authorize("use the saved password for \(site.displayName)") else { status = "Login cancelled"; return }
+            guard await SavedPasswords.authorize("use the saved password for \(site.displayName)") else { status = String(localized: "Login cancelled"); return }
             guard let saved = SavedPasswords.read(site.id) else {
                 report(ClientError.invalid("The saved password for \(site.displayName) could not be read from Keychain. Type it again.")); return
             }
@@ -383,9 +383,9 @@ final class CommanderModel: ObservableObject {
                 case .conflict:
                     setEditStatus(id, "Changed on the server — not uploaded", conflict: true)
                     let alert = NSAlert(); alert.alertStyle = .warning
-                    alert.messageText = "\((live.edit.remotePath as NSString).lastPathComponent) changed on the server"
-                    alert.informativeText = "The server copy changed after you opened it. Overwrite it with your edited version?"
-                    alert.addButton(withTitle: "Overwrite Server Version"); alert.addButton(withTitle: "Not Now")
+                    alert.messageText = String(localized: "\((live.edit.remotePath as NSString).lastPathComponent) changed on the server")
+                    alert.informativeText = String(localized: "The server copy changed after you opened it. Overwrite it with your edited version?")
+                    alert.addButton(withTitle: String(localized: "Overwrite Server Version")); alert.addButton(withTitle: String(localized: "Not Now"))
                     guard alert.runModal() == .alertFirstButtonReturn else { return }
                     _ = try await live.edit.overwrite()
                     setEditStatus(id, "Uploaded " + Date().formatted(date: .omitted, time: .standard))
@@ -427,13 +427,13 @@ final class CommanderModel: ObservableObject {
     func connect(site: Site, password: String, sessionToken: String = "", savePassword: Bool = false) {
         guard !connecting, !operationBusy else { return }
         let client = RemoteSession()
-        connecting = true; status = "Connecting to \(site.host)…"
+        connecting = true; status = String(localized: "Connecting to \(site.host)…")
         Task {
             defer { connecting = false }
             do {
                 try site.validate()
                 // A tunnel's bastion is verified first; the target key is then read through it.
-                guard try await confirmHostKeys(site) else { status = "Connection cancelled"; return }
+                guard try await confirmHostKeys(site) else { status = String(localized: "Connection cancelled"); return }
                 let home = try await open(client, site: site, password: password, sessionToken: sessionToken)
                 let path = site.remotePath.isEmpty || site.remotePath == "." ? home : try await client.realpath(site.remotePath)
                 let entries = try await client.list(path)
@@ -451,7 +451,7 @@ final class CommanderModel: ObservableObject {
             } catch {
                 await client.disconnect()
                 // A connection failure here belongs to the new tab only; the shown tab stays open.
-                self.error = error.localizedDescription; status = "Connection failed"; appendLog(error.localizedDescription, error: true)
+                self.error = error.localizedDescription; status = String(localized: "Connection failed"); appendLog(error.localizedDescription, error: true)
             }
         }
     }
@@ -575,9 +575,9 @@ final class CommanderModel: ObservableObject {
         var replace = false
         if !conflicts.isEmpty {
             let alert = NSAlert(); alert.alertStyle = .warning
-            alert.messageText = "Replace existing files?"
-            alert.informativeText = "\(conflicts.count) selected item(s) already exist at the destination. Folders will be merged. Existing files inside selected folders may also be replaced."
-            alert.addButton(withTitle: "Replace"); alert.addButton(withTitle: "Cancel")
+            alert.messageText = String(localized: "Replace existing files?")
+            alert.informativeText = String(localized: "\(conflicts.count) selected item(s) already exist at the destination. Folders will be merged. Existing files inside selected folders may also be replaced.")
+            alert.addButton(withTitle: String(localized: "Replace")); alert.addButton(withTitle: String(localized: "Cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }; replace = true
         }
         // A directory merge needs explicit approval even if its root did not exist at listing time.
@@ -624,8 +624,8 @@ final class CommanderModel: ObservableObject {
     /// Starts waiting jobs up to the Settings limit; each runs on a background connection of its tab.
     private func scheduleQueue() {
         while jobs.filter({ $0.state == .running }).count < maxTransfers, let index = jobs.firstIndex(where: { $0.state == .waiting }) {
-            if jobs[index].token.isCancelled { jobs[index].state = .cancelled; jobs[index].detail = "Cancelled"; continue }
-            jobs[index].state = .running; jobs[index].detail = "Connecting…"
+            if jobs[index].token.isCancelled { jobs[index].state = .cancelled; jobs[index].detail = String(localized: "Cancelled"); continue }
+            jobs[index].state = .running; jobs[index].detail = String(localized: "Connecting…")
             let job = jobs[index]
             Task { await run(job) }
         }
@@ -646,7 +646,7 @@ final class CommanderModel: ObservableObject {
                 try job.token.check()
                 let client = try await acquireTransferConnection(job.session)
                 connection = client
-                updateJob(job.id) { $0.detail = "Transferring…" }
+                updateJob(job.id) { $0.detail = String(localized: "Transferring…") }
                 if let root = job.createParentsBelow {
                     var folder = root
                     for part in RemotePath.parent(job.destination).dropFirst(root.count).split(separator: "/") {
@@ -656,7 +656,7 @@ final class CommanderModel: ObservableObject {
                 }
                 try await transferTree(job.entry, destination: job.destination, job: job, client: client)
                 releaseTransferConnection(client, session: job.session, healthy: true)
-                updateJob(job.id) { $0.state = .done; $0.fraction = 1; $0.detail = "Complete" }
+                updateJob(job.id) { $0.state = .done; $0.fraction = 1; $0.detail = String(localized: "Complete") }
                 appendLog("Transfer complete: \(job.entry.name)")
                 break
             } catch {
@@ -666,7 +666,7 @@ final class CommanderModel: ObservableObject {
                 if lost, !job.token.isCancelled, attempt < maxRetries, tabs.contains(where: { $0.id == job.session }) {
                     attempt += 1
                     let delay = min(2 * attempt, 10)
-                    updateJob(job.id) { $0.detail = "Connection lost — retrying in \(delay) s (\(attempt) of \(self.maxRetries))" }
+                    updateJob(job.id) { $0.detail = String(localized: "Connection lost — retrying in \(delay) s (\(attempt) of \(self.maxRetries))") }
                     appendLog("\(job.entry.name): connection lost; retrying (\(attempt) of \(maxRetries)).", error: true)
                     try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
                     continue
@@ -750,14 +750,14 @@ final class CommanderModel: ObservableObject {
         guard let job = jobs.first(where: { $0.id == id }), job.state == .failed || job.state == .cancelled,
               tabs.contains(where: { $0.id == job.session }) else { return }
         var again = TransferJob(session: job.session, siteName: job.siteName, direction: job.direction, entry: job.entry, destination: job.destination, replace: job.replace)
-        again.memory = job.memory; again.detail = "Waiting"
+        again.memory = job.memory; again.detail = String(localized: "Waiting")
         jobs.removeAll { $0.id == id }; jobs.append(again)
         scheduleQueue()
     }
 
     func promptMkdir() {
         guard !busy, activeSide == .local || connected else { return }
-        guard let name = prompt(title: "New directory", value: "New folder") else { return }
+        guard let name = prompt(title: String(localized: "New directory"), value: "New folder") else { return }
         let side = activeSide
         perform {
             try RemotePath.validateName(name)
@@ -768,7 +768,7 @@ final class CommanderModel: ObservableObject {
 
     func promptRename() {
         guard !busy, activeSelection.count == 1, let entry = activeSelection.first else { return }
-        guard let name = prompt(title: "Rename \(entry.name)", value: entry.name), name != entry.name else { return }
+        guard let name = prompt(title: String(localized: "Rename \(entry.name)"), value: entry.name), name != entry.name else { return }
         let side = activeSide
         perform {
             try RemotePath.validateName(name)
@@ -784,7 +784,7 @@ final class CommanderModel: ObservableObject {
         let alert = NSAlert(); alert.alertStyle = .warning
         alert.messageText = side == .local ? "Move \(entries.count) item(s) to Trash?" : "Permanently delete \(entries.count) remote item(s)?"
         alert.informativeText = side == .local ? "You can restore these files from Trash." : "Selected directories and their contents will be deleted from the server. This cannot be undone."
-        alert.addButton(withTitle: side == .local ? "Move to Trash" : "Delete Permanently"); alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: side == .local ? "Move to Trash" : "Delete Permanently"); alert.addButton(withTitle: String(localized: "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         perform {
             for entry in entries {
@@ -1009,7 +1009,7 @@ final class CommanderModel: ObservableObject {
     /// then selects it; a new remote file opens in the editor right away.
     func promptNewFile() {
         guard !busy, activeSide == .local || connected else { return }
-        guard let name = prompt(title: "New file", value: "new file.txt") else { return }
+        guard let name = prompt(title: String(localized: "New file"), value: "new file.txt") else { return }
         let side = activeSide
         operationBusy = true
         Task {
@@ -1049,7 +1049,7 @@ final class CommanderModel: ObservableObject {
     private func perform(_ operation: @escaping () async throws -> Void) {
         guard !busy else { return }; operationBusy = true
         Task {
-            do { try await operation(); status = "Operation complete" }
+            do { try await operation(); status = String(localized: "Operation complete") }
             catch { report(error) }
             operationBusy = false; refresh()
         }
@@ -1058,7 +1058,7 @@ final class CommanderModel: ObservableObject {
     private func prompt(title: String, value: String) -> String? {
         let alert = NSAlert(); alert.messageText = title
         let field = NSTextField(string: value); field.frame = NSRect(x: 0, y: 0, width: 360, height: 26)
-        alert.accessoryView = field; alert.addButton(withTitle: "OK"); alert.addButton(withTitle: "Cancel")
+        alert.accessoryView = field; alert.addButton(withTitle: String(localized: "OK")); alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = field
         return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
     }
@@ -1116,7 +1116,7 @@ final class CommanderModel: ObservableObject {
         Task {
             do {
                 try site.validate()
-                guard try await confirmHostKeys(site) else { status = "Terminal cancelled"; return }
+                guard try await confirmHostKeys(site) else { status = String(localized: "Terminal cancelled"); return }
                 showConnection = false
                 let start = site.remotePath.isEmpty || site.remotePath == "." ? nil : site.remotePath
                 openTerminal(site: site, directory: start, password: password, inTerminalApp: false)
@@ -1173,13 +1173,13 @@ final class CommanderModel: ObservableObject {
         guard site.transferProtocol.usesSSH else { return true }
         guard let store else { throw ClientError.invalid("The host key store is unavailable.") }
         let probe = SSHConfiguration(site: site, knownHostsFile: store.knownHostsFile.path)
-        for (target, role) in [(probe.tunnelSite, "tunnel host"), (site, "SSH server")] {
+        for (target, isTunnel) in [(probe.tunnelSite, true), (site, false)] {
             guard let target, try await !HostTrust.isKnown(target, file: store.knownHostsFile) else { continue }
             let identity = try await HostTrust.scan(target, knownHostsFile: store.knownHostsFile)
             let alert = NSAlert()
-            alert.messageText = "Trust this \(role)?"
-            alert.informativeText = "\(identity.host)\n\(identity.algorithm)\n\n\(identity.fingerprint)\n\nVerify this fingerprint with the server administrator before connecting."
-            alert.addButton(withTitle: "Trust and Connect"); alert.addButton(withTitle: "Cancel")
+            alert.messageText = isTunnel ? String(localized: "Trust this tunnel host?") : String(localized: "Trust this SSH server?")
+            alert.informativeText = String(localized: "\(identity.host)\n\(identity.algorithm)\n\n\(identity.fingerprint)\n\nVerify this fingerprint with the server administrator before connecting.")
+            alert.addButton(withTitle: String(localized: "Trust and Connect")); alert.addButton(withTitle: String(localized: "Cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return false }
             try HostTrust.trust(identity, file: store.knownHostsFile)
         }

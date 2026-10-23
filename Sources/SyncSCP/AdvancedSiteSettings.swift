@@ -50,11 +50,11 @@ private struct Badge: View {
     let status: SettingStatus
     var body: some View {
         if let text = status.badge {
-            Text(text).font(.system(size: 9.5, weight: .semibold)).lineLimit(1).fixedSize()
+            Text(L(text)).font(.system(size: 9.5, weight: .semibold)).lineLimit(1).fixedSize()
                 .padding(.horizontal, 6).padding(.vertical, 2)
                 .foregroundStyle(status == .planned ? settingsAccent : Color.secondary)
                 .background((status == .planned ? settingsAccent.opacity(0.12) : Color.secondary.opacity(0.13)), in: RoundedRectangle(cornerRadius: 4))
-                .help(help)
+                .help(L(help))
         }
     }
     private var help: String {
@@ -75,7 +75,7 @@ private struct Group<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Text(title.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.4).foregroundStyle(.secondary)
+                Text(L(title).uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.4).foregroundStyle(.secondary)
                 Badge(status: status)
             }
             VStack(alignment: .leading, spacing: 10) { content }
@@ -93,7 +93,7 @@ private struct Field<Content: View>: View {
     @ViewBuilder let content: Content
     var body: some View {
         HStack(spacing: 10) {
-            Text(label).frame(width: 230, alignment: .leading).foregroundStyle(status == .live ? .primary : .secondary)
+            Text(L(label)).frame(width: 230, alignment: .leading).foregroundStyle(status == .live ? .primary : .secondary)
             content.disabled(status != .live)
             Badge(status: status)
         }
@@ -106,7 +106,7 @@ private struct Check: View {
     var status: SettingStatus = .live
     var body: some View {
         HStack(spacing: 8) {
-            Toggle(title, isOn: status == .alwaysOn ? .constant(true) : $isOn).toggleStyle(.checkbox)
+            Toggle(L(title), isOn: status == .alwaysOn ? .constant(true) : $isOn).toggleStyle(.checkbox)
                 .disabled(status != .live)
             Badge(status: status)
         }
@@ -117,7 +117,7 @@ private struct TriPicker: View {
     @Binding var value: TriState
     var labels = ("Auto", "On", "Off")
     var body: some View {
-        Picker("", selection: $value) { Text(labels.0).tag(TriState.auto); Text(labels.1).tag(TriState.on); Text(labels.2).tag(TriState.off) }
+        Picker("", selection: $value) { Text(L(labels.0)).tag(TriState.auto); Text(L(labels.1)).tag(TriState.on); Text(L(labels.2)).tag(TriState.off) }
             .labelsHidden().fixedSize()
     }
 }
@@ -136,7 +136,7 @@ private struct PolicyList<Item: Hashable>: View {
                     let unavailable = item != divider && !available(item)
                     Button { selected = item } label: {
                         HStack {
-                            Text(title(item)).foregroundStyle(item == divider || unavailable ? .secondary : .primary)
+                            Text(L(title(item))).foregroundStyle(item == divider || unavailable ? .secondary : .primary)
                             Spacer()
                             if unavailable { Text("not in macOS OpenSSH").font(.system(size: 9.5)).foregroundStyle(.secondary) }
                         }
@@ -173,14 +173,14 @@ struct AdvancedSiteSettingsView: View {
             HStack(spacing: 0) {
                 List(selection: Binding(get: { page }, set: { if let value = $0 { page = value } })) {
                     ForEach(SettingsPage.tree(for: kind), id: \.page) { node in
-                        Text(node.page.title).padding(.leading, CGFloat(node.level) * 14).tag(node.page)
+                        Text(L(node.page.title)).padding(.leading, CGFloat(node.level) * 14).tag(node.page)
                     }
                 }
                 .listStyle(.sidebar).frame(width: 200)
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text(page.title).font(.system(size: 17, weight: .semibold))
+                        Text(L(page.title)).font(.system(size: 17, weight: .semibold))
                         content
                     }
                     .font(.system(size: 12.5)).textFieldStyle(.roundedBorder)

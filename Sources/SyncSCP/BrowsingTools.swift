@@ -20,10 +20,10 @@ struct PermissionsSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             Text(entries.count == 1 ? "Permissions of \(entries[0].name)" : "Permissions of \(entries.count) items").font(.title3.weight(.semibold))
             Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 8) {
-                GridRow { Text(""); ForEach(bits, id: \.0) { Text($0.0).foregroundStyle(.secondary) } }
+                GridRow { Text(""); ForEach(bits, id: \.0) { Text(L($0.0)).foregroundStyle(.secondary) } }
                 ForEach(classes, id: \.0) { name, shift in
                     GridRow {
-                        Text(name)
+                        Text(L(name))
                         ForEach(bits, id: \.0) { _, bit in
                             Toggle("", isOn: Binding(get: { mode & (bit << shift) != 0 }, set: { on in
                                 mode = on ? mode | (bit << shift) : mode & ~(bit << shift); octal = String(mode, radix: 8)

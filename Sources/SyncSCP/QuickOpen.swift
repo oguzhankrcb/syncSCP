@@ -57,9 +57,9 @@ struct QuickOpenSheet: View {
                 Button { run(item) } label: {
                     HStack(spacing: 10) {
                         Image(systemName: item.icon).foregroundStyle(accent).frame(width: 18)
-                        Text(item.title).lineLimit(1)
+                        Text(item.id.hasPrefix("command-") ? L(item.title) : item.title).lineLimit(1)
                         Spacer()
-                        Text(item.detail).foregroundStyle(.secondary).lineLimit(1)
+                        Text(item.id.hasPrefix("site-") ? item.detail : L(item.detail)).foregroundStyle(.secondary).lineLimit(1)
                     }.contentShape(Rectangle())
                 }.buttonStyle(.plain)
             }.listStyle(.plain)
